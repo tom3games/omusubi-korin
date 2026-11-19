@@ -5,7 +5,7 @@ import { chromium, webkit } from 'playwright'
 import { execSync } from 'node:child_process'
 // 個人のアカウント名は公開リポジトリに書かない。実行時に gh から取る（2026-11-02 live.mjs に名前が文字で入ったまま5本公開していた）
 const OWNER = (() => { try { return execSync('gh api user -q .login', { encoding: 'utf8' }).trim().toLowerCase() } catch { return '' } })()
-const URL0 = 'https://tom3games.github.io/omusubi-korin/'
+const URL0 = process.env.URL0 || 'https://tom3games.github.io/omusubi-korin/'
 const out = []
 for (const [name, bt, opts] of [['chromium', chromium, {}], ['webkit', webkit, { isMobile: true, hasTouch: true, deviceScaleFactor: 2 }]]) {
   const b = await bt.launch(bt === chromium ? { args: [...MUTE_LAUNCH.args, '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] } : {}), ctx = await b.newContext({ locale: 'ja-JP', viewport: { width: 390, height: 844 }, ...opts })
