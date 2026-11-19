@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<script id="ghMove">if(location.hostname==='tom3games.github.io'&&!/[?&]stay=1/.test(location.search)){location.replace('https://tom3games.com/play/omusubi-korin/'+location.search+location.hash)}</script>
+<link rel="canonical" href="https://tom3games.com/play/omusubi-korin/">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>おむすびころりん、落ちてたまるか｜おむすびころりんのゲーム</title>
+<meta name="description" content="昔話おむすびころりんのおむすびになって、山の畑からふもとの家まで転がる3Dゲーム。ねずみの穴に落ちたら終わり。岩で欠け、田んぼで太り、追いかけてくるおじいさんをかわす。やさしいおじいさんといじわるじいさん、2つの昔話から選べる。結末は9種類。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="おむすびころりん、落ちてたまるか">
+<meta property="og:description" content="おむすびになって山を転がる。ねずみの穴には、ぜったい落ちない。いじわるじいさんは穴の方へ蹴ってくる。">
+<meta property="og:image" content="https://tom3games.com/play/omusubi-korin/og.png?v=1">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://tom3games.com/play/omusubi-korin/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#efe4cc">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Antique&family=Zen+Kurenaido&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+[hidden]{display:none!important}
+:root{--washi:#f3ead6;--washi2:#e9dcc0;--sumi:#2a2320;--shu:#c23a2b;--ai:#2f4a72;--sabi:#8a4a2a;--take:#5d7f3a;
+  --go:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;--old:"Zen Antique","Hiragino Mincho ProN","Yu Mincho",serif;--hand:"Zen Kurenaido","Hiragino Maru Gothic ProN",sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%;background:#cfdbe2}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:var(--go);color:var(--sumi);overflow:hidden;height:100svh;background:#cfdbe2}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#view{position:fixed;inset:0;z-index:1}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+.layer{position:fixed;inset:0;z-index:5;pointer-events:none}
+.layer button,.layer .pe{pointer-events:auto}
+.washi{background-color:var(--washi);background-image:radial-gradient(rgba(120,90,50,.07) 1px,transparent 1.4px),radial-gradient(rgba(120,90,50,.05) 1px,transparent 1.2px);background-size:7px 9px,11px 5px}
+
+/* 読み込み: 坂を転がるおむすび */
+#loading{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .4s}
+#loading svg{width:170px;height:80px;overflow:visible}
+#loading .ob{animation:roll 1.7s linear infinite;transform-box:fill-box;transform-origin:50% 62%}
+@keyframes roll{0%{transform:translate(-60px,-14px) rotate(0)}100%{transform:translate(60px,14px) rotate(360deg)}}
+#loading p{font-family:var(--hand);font-size:17px;color:#5a4630;letter-spacing:.06em}
+#ldBar{width:160px;height:4px;background:rgba(90,70,48,.15);border-radius:2px;overflow:hidden}
+#ldBar i{display:block;height:100%;width:0;background:var(--shu);transition:width .2s}
+
+/* タイトル: 絵本の表紙。題簽（だいせん）は縦書き */
+#vTitle{display:flex;flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 14px calc(12px + env(safe-area-inset-bottom) + var(--inapp-bot,0px))}
+#cover{display:flex;gap:12px;align-items:flex-start}
+#daisen{position:relative;writing-mode:vertical-rl;text-orientation:upright;padding:14px 10px;border:2px solid var(--shu);box-shadow:inset 0 0 0 4px var(--washi),inset 0 0 0 5px rgba(194,58,43,.55),0 6px 18px rgba(40,30,20,.3);font-family:var(--old);color:var(--sumi);line-height:1.15;transform:rotate(-1deg)}
+#daisen .a,#daisen .b{display:block}
+#daisen .a{font-size:min(5.6vw,24px,3.3svh);letter-spacing:.04em;padding-top:.6em}
+#daisen .b{font-size:min(10.6vw,46px,6.4svh);letter-spacing:.02em;margin-right:6px}
+#tK{flex:1;margin-top:6px;font-family:var(--hand);font-size:16px;line-height:1.6;color:#2a2320;background:rgba(243,234,214,.96);border-radius:3px;padding:6px 10px;word-break:keep-all;overflow-wrap:anywhere;box-shadow:0 2px 8px rgba(40,30,20,.15)}
+#tSpace{flex:1;min-height:8px}
+#tPick{align-self:center;font-family:var(--hand);font-size:16px;text-align:center;color:var(--sumi);background:rgba(243,234,214,.94);border-radius:3px;padding:2px 12px;margin-bottom:8px;box-shadow:0 2px 6px rgba(40,30,20,.2)}
+#books{display:flex;gap:12px;justify-content:center}
+.book{position:relative;width:min(43vw,190px);height:min(30svh,190px,40vw);border-radius:3px 6px 6px 3px;display:flex;align-items:flex-start;justify-content:flex-end;padding:10px;box-shadow:inset 7px 0 0 rgba(0,0,0,.18),inset 9px 0 0 rgba(255,255,255,.08),0 8px 16px rgba(30,20,10,.35);transition:transform .08s}
+.book:active{transform:translateY(3px)}
+.book.kind{background:linear-gradient(135deg,#3b5a86,#2a4266)}
+.book.greedy{background:linear-gradient(135deg,#9a5532,#6e3a20);transform:rotate(1.2deg)}
+.book .slip{writing-mode:vertical-rl;background:var(--washi);color:var(--sumi);font-family:var(--old);font-size:min(4vw,18px,2.3svh);line-height:1.25;padding:8px 5px;border:1px solid rgba(0,0,0,.25);height:calc(100% - 24px);text-align:start}
+.book .tag{position:absolute;left:14px;bottom:6px;font-size:13px;white-space:nowrap;font-weight:900;color:#fff;letter-spacing:.1em}
+.book .tag::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#e9dcc0;vertical-align:1px}
+.book.greedy .tag::before{background:var(--shu)}
+#tBest{min-height:20px;margin-top:8px;font-size:13px;font-weight:700;color:#fff;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.tLinks{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:2px}
+.tLinks button{min-height:44px;padding:0 10px;font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.65)}
+.tLinks button b{font-weight:900;color:#ffd9c9}
+.ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+
+/* はじまりの語り */
+#intro{position:absolute;left:14px;right:14px;top:calc(18px + env(safe-area-inset-top));padding:12px 16px 14px;font-family:var(--hand);font-size:18px;line-height:1.7;box-shadow:0 6px 18px rgba(40,30,20,.3);border-radius:2px;opacity:0;transition:opacity .4s}
+#intro.on{opacity:1}
+#intro small{display:block;text-align:right;font-family:var(--go);font-size:12px;color:#7a6650;margin-top:4px}
+
+/* 遊び中: 上の絵巻（どこまで来たか） */
+#emaki{position:absolute;left:10px;right:58px;top:calc(10px + env(safe-area-inset-top));height:46px;border-radius:2px;box-shadow:0 3px 10px rgba(40,30,20,.25)}
+#emaki::before,#emaki::after{content:"";position:absolute;top:-3px;bottom:-3px;width:7px;border-radius:3px;background:linear-gradient(90deg,#6b3e22,#a06a3e,#6b3e22)}
+#emaki::before{left:-5px}#emaki::after{right:-5px}
+#emaki svg{position:absolute;inset:4px 10px;width:calc(100% - 20px);height:38px;overflow:visible}
+#emaki .lbl{font-family:var(--hand);font-size:11px;fill:#6b5236}
+#bMute2{position:absolute;right:6px;top:calc(8px + env(safe-area-inset-top));width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+#secT{position:absolute;left:0;right:0;top:calc(66px + env(safe-area-inset-top));text-align:center;font-family:var(--old);font-size:24px;color:#fff;-webkit-text-stroke:4px rgba(42,35,32,.85);paint-order:stroke fill;text-shadow:0 2px 6px rgba(0,0,0,.4);opacity:0;transition:opacity .5s;letter-spacing:.2em}
+#secT.on{opacity:1}
+#bub{position:absolute;z-index:8;max-width:min(84%,320px);background:var(--washi);color:var(--sumi);border-radius:4px;padding:3px 11px 4px;font-family:var(--hand);font-size:17px;line-height:1.35;width:max-content;opacity:0;visibility:hidden;transition:opacity .15s;transform:translate(-50%,-100%);box-shadow:0 2px 8px rgba(30,20,10,.3)}
+#bub.on{opacity:1;visibility:visible}
+#bub.mouse{background:#fff4f2;border:2px solid #e3a3a0}
+#pop{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);font-family:var(--old);font-size:34px;color:#fff;-webkit-text-stroke:6px var(--sumi);paint-order:stroke fill;white-space:nowrap;opacity:0}
+#pop.on{animation:pop 1.1s ease-out forwards}
+#pop.red{color:#ffd2c8}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-30%)}12%{opacity:1;transform:translate(-50%,-50%)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%)}}
+#tut{position:absolute;left:0;right:0;bottom:calc(40px + env(safe-area-inset-bottom) + var(--inapp-bot,0px));display:flex;flex-direction:column;align-items:center;gap:6px;transition:opacity .5s}
+#tut svg{width:120px;height:60px}
+#tut .hand{animation:swipe 1.6s ease-in-out infinite}
+@keyframes swipe{0%,100%{transform:translateX(-26px)}50%{transform:translateX(26px)}}
+#tut p{font-size:15px;font-weight:700;background:rgba(243,234,214,.92);padding:4px 12px;border-radius:3px}
+#vPlay.cine #emaki,#vPlay.cine #tut,#vPlay.cine #secT,#vPlay.cine #pop{visibility:hidden}
+
+/* 結果: 絵本の1ページ */
+#vEnd{display:flex;flex-direction:column;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom) + var(--inapp-bot,0px));background:rgba(60,45,30,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);pointer-events:auto}
+#resBox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+#res{max-width:100%;max-height:100%;aspect-ratio:4/5;box-shadow:0 10px 30px rgba(20,10,0,.45)}
+#res.in{animation:resIn .55s ease-out}
+@keyframes resIn{from{transform:translateY(16px) rotate(-1.5deg);opacity:0}to{opacity:1}}
+#newEnd{min-height:20px;font-size:14px;font-weight:900;color:#f3ead6;margin-top:6px}
+.endBtns{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+.endBtns .row{display:flex;gap:2px 6px;justify-content:center;flex-wrap:wrap}
+.endBtns .row button{min-height:44px;padding:0 8px;font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+#bAgain{min-width:min(70vw,260px);height:54px;margin-top:2px;border-radius:3px;font-family:var(--old);font-size:24px;letter-spacing:.15em;color:var(--washi);background:linear-gradient(#cf4a36,#a8301f);box-shadow:inset 0 0 0 2px rgba(255,255,255,.18),0 5px 0 #6e1d12,0 8px 16px rgba(0,0,0,.3)}
+#bAgain:active{transform:translateY(4px);box-shadow:inset 0 0 0 2px rgba(255,255,255,.18),0 1px 0 #6e1d12}
+
+/* 遊び方・図鑑（和紙の帳面） */
+.ovl{position:fixed;inset:0;z-index:80;background:rgba(40,28,15,.5);display:flex;align-items:center;justify-content:center;padding:16px;pointer-events:auto}
+.ovl .in{position:relative;width:min(100%,440px);max-height:calc(100svh - 32px);overflow:auto;padding:18px 18px 14px;color:var(--sumi);border-radius:2px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.ovl h3{font-family:var(--old);font-size:24px;margin-bottom:10px;letter-spacing:.1em}
+.ovl ol{padding-left:1.2em;display:flex;flex-direction:column;gap:8px;font-size:15px;font-weight:500;line-height:1.6}
+.ovl ol b{font-weight:900;color:#8a2a1c}
+.ovl small{display:block;margin-top:12px;font-size:11px;line-height:1.5;color:#6b5a48}
+.ovl .close{display:block;margin:12px auto 0;min-height:44px;padding:0 26px;font-size:16px;font-weight:700;border:2px solid var(--sumi);border-radius:3px}
+#zGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+#zGrid .z{position:relative;background:#fbf6ea;border:1px solid rgba(90,70,48,.25);padding:8px 8px 7px;min-height:66px}
+#zGrid .z b{display:block;font-family:var(--hand);font-size:16px;line-height:1.25}
+#zGrid .z i{display:block;font-style:normal;font-size:12px;color:#6b5a48;margin-top:3px;line-height:1.35}
+#zGrid .z.no b{color:#a89a88}
+#zGrid .z.rare b::after{content:"";display:inline-block;width:8px;height:8px;margin-left:5px;border-radius:50%;background:#c9a23f;vertical-align:middle}
+#zGrid .z.good{box-shadow:inset 0 0 0 2px var(--shu)}
+@media (max-height:700px){.book{height:min(25svh,170px,40vw)}#tK{font-size:14px}#bAgain{height:46px}.ovl ol{font-size:14px;gap:6px}}
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="loading" class="washi"><svg viewBox="-85 0 170 80" aria-hidden="true"><path d="M-85 38 L85 74" stroke="#a8946f" stroke-width="3" fill="none" stroke-linecap="round"/><g class="ob"><path d="M0 18 C6 18 22 44 22 50 C22 56 18 58 0 58 C-18 58 -22 56 -22 50 C-22 44 -6 18 0 18Z" fill="#fbf8f0" stroke="#6b5236" stroke-width="2"/><path d="M-12 58 L-9 44 L9 44 L12 58Z" fill="#26301f"/></g></svg><p id="ldTxt">おむすびを にぎっています</p><div id="ldBar"><i></i></div></div>
+
+<main id="vTitle" class="layer" hidden>
+  <div id="cover"><h1 id="daisen" class="washi pe"><span class="a" id="tH1"></span><span class="b" id="tH2"></span></h1><p id="tK"></p></div>
+  <div id="tSpace"></div>
+  <p id="tPick"></p>
+  <div id="books"><button class="book kind" id="bKind"><span class="slip" id="bKindT"></span><span class="tag" id="bKindTag"></span></button><button class="book greedy" id="bGreedy"><span class="slip" id="bGreedyT"></span><span class="tag" id="bGreedyTag"></span></button></div>
+  <p id="tBest"></p>
+  <div class="tLinks"><button id="bHow"></button><button id="bZukan"></button><button id="bLang"></button><button id="bMute" aria-label="sound"><svg class="ico" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="x" d="M16 9.5l5 5M21 9.5l-5 5" style="display:none"/></svg></button></div>
+</main>
+
+<main id="vPlay" class="layer" hidden>
+  <div id="emaki" class="washi"><svg id="emakiSvg" viewBox="0 0 300 38" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+  <button id="bMute2" aria-label="sound"><svg class="ico" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="x" d="M16 9.5l5 5M21 9.5l-5 5" style="display:none"/></svg></button>
+  <div id="secT"></div>
+  <div id="intro" class="washi"><span id="introT"></span><small id="introS"></small></div>
+  <div id="bub"></div>
+  <div id="pop"></div>
+  <div id="tut"><svg viewBox="0 0 120 60" aria-hidden="true"><path d="M20 50 H100" stroke="rgba(255,255,255,.8)" stroke-width="3" stroke-dasharray="4 6" stroke-linecap="round"/><g class="hand"><path d="M54 52 V26 c0-4 6-4 6 0 v12 l2-14 c0-4 6-4 6 0 v14 l2-10 c0-4 6-3 6 1 v16 c0 8-4 12-12 12 h-4 c-6 0-9-3-11-8 l-5-10 c-2-4 3-7 6-3z" fill="#f3ead6" stroke="#2a2320" stroke-width="2.5" stroke-linejoin="round"/></g></svg><p id="tutT"></p></div>
+</main>
+
+<main id="vEnd" class="layer" hidden>
+  <div id="resBox"><canvas id="res" width="1080" height="1350"></canvas></div>
+  <p id="newEnd"></p>
+  <div class="endBtns">
+    <button id="bAgain"></button>
+    <div class="row"><button id="bOther"></button><button id="bSave"></button><button id="bPost"></button><button id="bZukan2"></button><button id="bBack"></button></div>
+  </div>
+</main>
+
+<div class="ovl" id="how" hidden><div class="in washi"><h3 id="howH"></h3><ol id="howBody"></ol><small id="howCred"></small><button class="close" id="howClose"></button></div></div>
+<div class="ovl" id="zukan" hidden><div class="in washi"><h3 id="zH"></h3><div id="zGrid"></div><button class="close" id="zClose"></button></div></div>
+
+<script>
+(function(){
+  var opt={passive:false};
+  ['gesturestart','gesturechange','gestureend'].forEach(function(n){document.addEventListener(n,function(e){e.preventDefault()},opt)});
+  document.addEventListener('touchmove',function(e){if(e.touches&&e.touches.length>1)e.preventDefault()},opt);
+  var last=0;document.addEventListener('touchend',function(e){var n=Date.now();if(n-last<300&&!(e.target.closest&&e.target.closest('button,a')))e.preventDefault();last=n},opt);
+  document.addEventListener('dblclick',function(e){e.preventDefault()},opt);
+  window.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault()},opt);
+  window.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&['+','-','=','0',';'].indexOf(e.key)>=0)e.preventDefault()});
+  document.addEventListener('contextmenu',function(e){e.preventDefault()});
+})();
+(function(){
+  var errs=[];
+  window.addEventListener('error',function(e){errs.push((e.message||'error')+' @'+(e.filename||'')+':'+(e.lineno||''))});
+  window.addEventListener('unhandledrejection',function(e){errs.push('reject: '+(e.reason&&e.reason.message||e.reason))});
+  setTimeout(function(){
+    if(window.__jsUp) return;
+    var l=document.getElementById('loading');if(l)l.style.display='none';
+    var d=document.createElement('div');d.style.cssText='position:fixed;inset:auto 8px 8px 8px;z-index:199;background:#fff;color:#b00;font:12px/1.4 monospace;white-space:pre-wrap;padding:10px';
+    d.textContent='起動できませんでした / failed to start\n'+(errs.join('\n')||'(no error captured)')+'\n'+navigator.userAgent;
+    document.body.appendChild(d);
+  },15000);
+})();
+</script>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+<script src="tm.js?v=1" data-game="omusubi-korin"></script>
+<script src="sfx.js?v=1"></script>
+<script type="module" src="js/game.js?v=1"></script>
+<script src="support.js?v=1" data-ja="おむすび" data-en="a rice ball"></script>
+</body>
+</html>

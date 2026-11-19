@@ -1,0 +1,26 @@
+- snd/bgm.mp3: Hot Springs Town / Kistol / CC0
+- snd/birds.mp3: File:SND 4458a.ogg（ウグイス・2〜32秒） / Fg2 / Public domain
+- snd/uguisu.mp3: File:Uguisu5707.ogg（岐阜県 谷汲山 華厳寺のウグイス） / Jnn / CC BY 2.1 JP
+- snd/roll.mp3: File:Walking on grass (Gravity Sound).wav（6〜14秒を切り出し） / Gravity Sound / CC BY 4.0
+- snd/eat.mp3: File:Eating pizza.ogg（20〜23秒を切り出し） / ezwa / Public domain
+- snd/sq1.mp3: Squeaky Rat / qubodup / CC0
+- snd/sq2.mp3: Squeaky Rat / qubodup / CC0
+- snd/sq3.mp3: Squeaky Rat / qubodup / CC0
+- snd/chu.mp3: Mouse Imitation / AntumDeluge / CC0
+- snd/kick.mp3: Thwack Sounds / AntumDeluge / CC0
+- snd/kick2.mp3: Thwack Sounds / AntumDeluge / CC0
+- snd/grunt1.mp3: Little Grunts / crueltyinc / CC0
+- snd/grunt2.mp3: Little Grunts / crueltyinc / CC0
+- snd/fall.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/rock1.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/rock2.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/rock3.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/wood1.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/wood2.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/splash1.mp3: 100 CC0 SFX / rubberduck / CC0
+- snd/splash2.mp3: 100 CC0 SFX / rubberduck / CC0
+- snd/j_good.mp3: 85 Short music jingles / Kenney / CC0
+- snd/j_bad.mp3: 85 Short music jingles / Kenney / CC0
+- snd/j_rare.mp3: 85 Short music jingles / Kenney / CC0
+- snd/click.mp3: Interface Sounds / Kenney / CC0
+- snd/wind.wav: Wikimedia Commons「Howling wind」（CC0）

@@ -1,0 +1,8 @@
+node_modules
+.DS_Store
+shots/
+tools/_dbg.mjs
+art/prompts/
+tools/_live_dbg.mjs
+tools/_prof.mjs
+tools/_*
