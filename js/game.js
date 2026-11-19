@@ -279,13 +279,13 @@ const _v = new THREE.Vector3(), _w = new THREE.Vector3()
 function camFollow(dt) {
   const o = G.run.o, r = o.r
   const sp = Math.hypot(o.vx, o.vz)
-  if (sp > 0.5) { _v.set(o.vx, 0, o.vz).normalize(); G.camDir.lerp(_v, 1 - Math.exp(-dt * 2.5)).normalize() }
+  // カメラはコースの向きの真後ろ。スワイプの左右（phys.js はコースの向き基準）と画面の左右をそろえる
+  { const dcx = (cx(o.z + 1) - cx(o.z - 1)) / 2, fl = Math.hypot(dcx, 1); _v.set(dcx / fl, 0, 1 / fl); G.camDir.lerp(_v, 1 - Math.exp(-dt * 2.5)).normalize() }
   const narrow = innerWidth / innerHeight < 0.6 ? 1.1 : 1
-  const dist = (2.7 + r * 4 + sp * 0.05) * narrow, up = 1.75 + r * 2.6
+  const dist = (2.7 + r * 4 + sp * 0.05) * narrow, up = 2.3 + r * 2.8
   const op = oni.position
-  // 真後ろではなく少し右後ろから見る（三角の面とのりが見える）
-  const ca = 0.62, bx = G.camDir.x * Math.cos(ca) - G.camDir.z * Math.sin(ca), bz = G.camDir.x * Math.sin(ca) + G.camDir.z * Math.cos(ca)
-  _w.set(op.x - bx * dist, 0, op.z - bz * dist)
+  // 真後ろから見る（2026-11-20 本人「斜め後ろは操作しづらい」）。三角の面は、おむすびの向きを少しずらして見せる
+  _w.set(op.x - G.camDir.x * dist, 0, op.z - G.camDir.z * dist)
   _w.y = Math.max(height(_w.x, _w.z) + 0.6, op.y + up)
   G.camPos.lerp(_w, 1 - Math.exp(-dt * 6))
   _v.set(op.x + G.camDir.x * 2.6, op.y - 0.1, op.z + G.camDir.z * 2.6)
