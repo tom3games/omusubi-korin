@@ -1,10 +1,12 @@
 // おむすびとおじいさんの動き（three を使わない。固定 60Hz。同じ入力なら同じ結果）
-import { OBJ, HOLE, START_R, S_END, SURF, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=2'
+import { OBJ, HOLE, START_R, S_END, SURF, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=3'
 
 export const DT = 1 / 60
 export const TUNE = {
   g: 12.5, gk: 0.45, cd: 0.008, roll: 1.35, pushV: 3.1, latV: 3.2, latDamp: 3.0, vmax: 11, stopV: 0.3,
   grow: 0.0075, maxR: 0.62, chip: [0.012, 0.0016],
+  // 転がるたびに少しずつ削れる（1m で wear。田んぼでは削れずにくっつく）。2026-11-20 本人「転がっていくたびにちょっとずつ削れて」
+  wear: 0.0001, minR: 0.12,
   // おじいさん
   kind: { vmax: 15, acc: 6, catchD: 0.95, follow: 0.97, close: 0.45, far: 9 },
   greedy: { vmax: 16, acc: 7, follow: 1.0, close: 1.1, far: 7, kickD: 2.1, windup: 0.62, cool: 3.2, hitLat: 0.85 },
@@ -79,6 +81,7 @@ export function step(run, inp) {
   const ds = Math.hypot(o.x - px, o.z - pz)
   // 田んぼで米粒がくっつく
   if (S.grow && o.r < T.maxR) { const g = T.grow * ds; o.r = Math.min(T.maxR, o.r + g); run.st.grow += g; run.st.paddyT += DT }
+  else if (!S.grow && o.r > T.minR) { const w = Math.min(o.r - T.minR, T.wear * ds); o.r -= w; run.st.wear = (run.st.wear || 0) + w }
   collide(run, sp)
   holes(run, px, pz)
   if (run.done) return
@@ -147,7 +150,7 @@ function dig(run) {
   if (run.digI >= run.digs.length || o.z < run.digs[run.digI]) return
   run.digI++
   if (o.r >= HOLE.big) { emit(run, 'digGiveUp'); return } // 大きすぎると、ねずみは掘るのをあきらめる
-  const lead = clamp(o.sp * 1.25, 4, 11), z = o.z + lead
+  const lead = clamp(o.sp * 1.6, 5, 13), z = o.z + lead
   const w = widths(z), hr = Math.min(HOLE.big, Math.max(HOLE.small, o.r + 0.07))
   const x = cx(z) + clamp(o.x + o.vx / Math.max(1, o.vz) * lead - cx(z), -(w.road - 0.4), w.road - 0.4)
   const h = { x, z, hr, size: hr >= HOLE.big ? 'big' : hr >= HOLE.mid ? 'mid' : 'small', t0: run.t + 0.95, i: run.holes.length, dug: 1 }

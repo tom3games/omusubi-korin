@@ -84,7 +84,7 @@ await t('本（やさしいおじいさん）を指で押すと語りが出て�
   expect(r.ok && /おじいさん/.test(intro), { r, intro }); return { intro: intro.slice(0, 12) }
 })
 await t('物理は固定 60Hz（60 回進めると 1 秒）', async () => {
-  const r = await p.evaluate(async () => { const P = await import('./js/phys.js?v=2'); const run = P.newRun(3); for (let i = 0; i < 60; i++) P.step(run, {}); return +run.t.toFixed(4) })
+  const r = await p.evaluate(async () => { const P = await import('./js/phys.js?v=3'); const run = P.newRun(3); for (let i = 0; i < 60; i++) P.step(run, {}); return +run.t.toFixed(4) })
   expect(Math.abs(r - 1) < 1e-6, r); return r
 })
 await t('本物の指で右斜め前へはじくと、前へ転がって画面の右へ曲がる。はじかないと15秒以内に止まる', async () => {
@@ -110,7 +110,7 @@ await t('遊び中: 一画面・はみ出しなし・絵巻と音のボタンが
 })
 await t('同じ種・同じ入力なら同じ結果（決定的）', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=2'), B = await import('./js/bot.js?v=2')
+    const P = await import('./js/phys.js?v=3'), B = await import('./js/bot.js?v=3')
     const go = m => { const run = P.newRun(42, { mode: m }), bot = B.makeBot('human', 42); while (!run.done && run.t < 200) P.step(run, bot(run)); return run.end.key + ':' + run.o.r.toFixed(6) + ':' + run.steps }
     return [go('greedy'), go('greedy'), go('kind'), go('kind')]
   })
@@ -118,7 +118,7 @@ await t('同じ種・同じ入力なら同じ結果（決定的）', async () =>
 })
 await t('はじかないと止まって、拾われて穴に落とされる（2つの話 × 12通り）', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=2'), out = {}
+    const P = await import('./js/phys.js?v=3'), out = {}
     for (const m of ['kind', 'greedy']) for (let s = 1; s <= 12; s++) { const run = P.newRun(s, { mode: m }); while (!run.done && run.t < 200) P.step(run, {}); const k = run.end ? run.end.key : 'timeout'; out[k] = (out[k] || 0) + 1 }
     return out
   })
@@ -126,7 +126,7 @@ await t('はじかないと止まって、拾われて穴に落とされる（2�
 })
 await t('穴: 自分より大きい穴に落ち、小さい穴は乗り越える。速くても抜けない', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=2'), C = await import('./js/course.js?v=2')
+    const P = await import('./js/phys.js?v=3'), C = await import('./js/course.js?v=3')
     const at = (r0, hr, vz) => { const run = P.newRun(5, { mode: 'kind' }); run.g.st = 'wait'; run.g.tm = 99; const z = 150; run.holes = [{ x: C.cx(z), z, hr, size: 'x', t0: 0, i: 0 }]; run.hcd = new Float32Array(1); Object.assign(run.o, { x: C.cx(z - 0.3), z: z - 0.3, vx: 0, vz, r: r0 }); for (let i = 0; i < 30 && !run.done; i++) P.step(run, {}); return run.done ? run.end.key : 'pass' }
     return { smallOni: at(0.25, 0.34, 6), bigOni: at(0.45, 0.34, 6), fast: at(0.25, 0.34, 12.4) }
   })
@@ -134,7 +134,7 @@ await t('穴: 自分より大きい穴に落ち、小さい穴は乗り越える
 })
 await t('いじわるじいさん: 振り上げた時に横へ逃げれば空振り、逃げなければ蹴られる', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=2'), C = await import('./js/course.js?v=2')
+    const P = await import('./js/phys.js?v=3'), C = await import('./js/course.js?v=3')
     const go = steer => { const run = P.newRun(9, { mode: 'greedy' }); run.holes = []; run.hcd = new Float32Array(0); const z = 260; Object.assign(run.o, { x: C.cx(z), z, vx: 0, vz: 6, sp: 6 }); Object.assign(run.g, { x: C.cx(z - 1.5), z: z - 1.5, st: 'run', tm: 0, cool: 0, v: 6, hist: [] }); const ev = []; for (let i = 0; i < 90; i++) { P.step(run, ev.includes('windup') && !run.__d ? (run.__d = 1, { lat: steer }) : (i % 20 === 0 && !ev.includes('windup') ? { push: 0.6 } : {})); for (const e of run.ev) ev.push(e.k); run.ev.length = 0 } return ev.filter(k => /windup|kick|whiff/.test(k)).slice(0, 2).join(',') }
     return { stay: go(0), dodge: go(1) }
   })
@@ -142,7 +142,7 @@ await t('いじわるじいさん: 振り上げた時に横へ逃げれば空振
 })
 await t('上手い bot は、穴にほぼ落ちない（どの列にも通れるすき間がある）', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=2'), B = await import('./js/bot.js?v=2'), out = {}
+    const P = await import('./js/phys.js?v=3'), B = await import('./js/bot.js?v=3'), out = {}
     for (let s = 1; s <= 16; s++) { const run = P.newRun(s, { mode: 'kind' }), bot = B.makeBot('good', s); run.g.tm = 9999; while (!run.done && run.t < 200) P.step(run, bot(run)); const k = run.end ? run.end.key : 'timeout'; out[k] = (out[k] || 0) + 1 }
     return out
   })

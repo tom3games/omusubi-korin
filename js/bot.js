@@ -1,7 +1,7 @@
 // 自動で遊ぶ（検査と sim と宣伝動画用）。three を使わない
-import { OBJ, cx, widths, clamp, rng } from './course.js?v=2'
+import { OBJ, cx, widths, clamp, rng } from './course.js?v=3'
 const ROCKS = OBJ.filter(b => !b.decor)
-import { holeOpen } from './phys.js?v=2'
+import { holeOpen } from './phys.js?v=3'
 
 // kind: 'none'（何もしない）/ 'center'（道の真ん中だけ）/ 'human'（人の速さ: 反応が遅れ、狙いがずれる）/ 'good'（上手い）/ 'paddy'（田んぼで太る）
 export function makeBot(kind = 'good', seed = 1) {

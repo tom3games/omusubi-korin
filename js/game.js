@@ -5,15 +5,16 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { ShaderPass } from '../vendor/jsm/postprocessing/ShaderPass.js'
-import { TXT, ENDINGS } from './data.js?v=2'
-import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=2'
-import { newRun, step, DT, holeOpen } from './phys.js?v=2'
-import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=2'
-import { loadChars, Person } from './chars.js?v=2'
-import { makeBot } from './bot.js?v=2'
+import { TXT, ENDINGS, TAMA } from './data.js?v=3'
+import { makeTsuzura, makeItem } from './tama.js?v=3'
+import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=3'
+import { newRun, step, DT, holeOpen } from './phys.js?v=3'
+import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=3'
+import { loadChars, Person } from './chars.js?v=3'
+import { makeBot } from './bot.js?v=3'
 
 window.__jsUp = true
-const V = '?v=2'
+const V = '?v=3'
 const $ = id => document.getElementById(id)
 const Q = new URLSearchParams(location.search)
 const isTouch = matchMedia('(pointer: coarse)').matches
@@ -23,6 +24,7 @@ const LS = { get(k, d) { try { const v = localStorage.getItem(NS + k); return v 
 let lang = Q.get('lang') || LS.get('lang', (navigator.language || 'ja').slice(0, 2) === 'ja' ? 'ja' : 'en')
 if (!TXT[lang]) lang = 'ja'
 const t = k => (TXT[lang][k] ?? TXT.ja[k])
+const t_ = t
 
 // ------------------------------------------------------------ 描画の土台
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' })
@@ -191,7 +193,7 @@ function setupRun(seed, mode) {
   oni.setFace('calm')
   if (mode === 'kind') { oni.position.set(cx(-4.5) + 1.6 + 0.1, height(cx(-4.5) + 1.6, -4.5) + 0.45 + supportH(START_R, 0) + 0.02, -4.4); oni.userData.spin.rotation.x = 0 }
   else placeOni()
-  G.end = null; G.endT = 0; G.prev = null; G.acc = 0; G.sec = ''; G.inp = {}; G.imp.push = 0; G.imp.lat = 0; G.swipes = 0; G.drag = null
+  G.end = null; G.endT = 0; if (G.tamaG) { scene.remove(G.tamaG); G.tamaG = null } G.tama = null; G.wearShown = 0; G.prev = null; G.acc = 0; G.sec = ''; G.inp = {}; G.imp.push = 0; G.imp.lat = 0; G.swipes = 0; G.drag = null
   G.camDir.set(0, 0, 1); grade.uniforms.dark.value = 0
   babaG.visible = true; baba.play('sit')
   drawEmaki()
@@ -265,7 +267,11 @@ function oniVisual(alpha) {
   const sp = Math.hypot(o.vx, o.vz)
   if (sp > 0.3) { const yaw = Math.atan2(o.vx, o.vz) + 0.5; oni.rotation.y += ((yaw - oni.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * 0.25 } // 少しカメラの方へ向けて三角の面を見せる
   oni.userData.spin.rotation.x = ang
+  // 削れた分だけ、うしろに米粒がこぼれる（0.0005 ごとに1粒）
+  const wr = G.run.st.wear || 0
+  if (wr - (G.wearShown || 0) > 0.0005) { G.wearShown = wr; crumb(oni.position, o.r); checkSize() }
 }
+function crumb(p, r) { const a = Math.random() * 6.28; P.emit(p.x + Math.cos(a) * r * 0.5, p.y - r * 0.6, p.z + Math.sin(a) * r * 0.5, Math.cos(a) * 0.4, 0.6 + Math.random() * 0.6, Math.sin(a) * 0.4, 0.9 + Math.random() * 0.4, 0.04 + Math.random() * 0.025, [1, 0.99, 0.95], 1.2, 9, 0) }
 
 // ------------------------------------------------------------ カメラ
 function camSnap() { const o = oni.position; G.camPos.set(o.x, o.y + 1.8, o.z - 4); G.camLook.set(o.x, o.y, o.z + 3); camera.position.copy(G.camPos); camera.lookAt(G.camLook) }
@@ -454,6 +460,7 @@ function startEnding(key) {
 }
 function updateEnding(dt) {
   G.endT += dt
+  if (G.tama) { updateTama(dt); return }
   const k = G.end.key, o = G.run.o
   if (k === 'korin' || k === 'kicked') {
     // 穴に吸いこまれる
@@ -492,7 +499,7 @@ function updateEnding(dt) {
     fadeGpa(1, 1)
     camTo(_v, _w, dt, 2.5)
     gpa.update(dt)
-    if (G.endT > 3.8) showResult()
+    if (G.endT > 3.8) startTama()
     return
   } else {
     // ふもとの家: 庭で止まって、家ごと見せる
@@ -504,22 +511,93 @@ function updateEnding(dt) {
     if (gpa && G.run.g.st !== 'gone') { const g = G.run.g; g.x += (o.x - 0.9 - g.x) * dt * 1.5; g.z += (o.z - 1.2 - g.z) * dt * 1.5; if (Math.hypot(o.x - g.x, o.z - g.z) < 1.6 && gpa.anim === 'sprint') gpa.play('idle') }
   }
   updateGpa(dt)
-  if (G.endT > 3.2) showResult()
+  if (G.endT > 3.2) startTama()
 }
 function oniVisualStop(dt) { const o = G.run.o; oni.position.y = height(oni.position.x, oni.position.z) + supportH(o.r, o.ang); const want = Math.atan2(camera.position.z - oni.position.z, -(camera.position.x - oni.position.x)); oni.rotation.y += ((want - oni.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(1, dt * 3); oni.userData.spin.rotation.x += (Math.round(oni.userData.spin.rotation.x / 2.0944) * 2.0944 - oni.userData.spin.rotation.x) * Math.min(1, dt * 4) }
+
+
+// ------------------------------------------------------------ 結末のあと: ねずみがつづらを持ってくる（中身はランダム）
+function pickTama(stampKind) {
+  if (G.forceTama) return TAMA.find(q => q.key === G.forceTama) || TAMA[0]
+  const tot = TAMA.reduce((a, q) => a + q.w[stampKind], 0); let r = Math.random() * tot
+  for (const q of TAMA) { r -= q.w[stampKind]; if (r <= 0) return q }
+  return TAMA[0]
+}
+function startTama() {
+  const E = G.end, def = ENDINGS.find(q => q.key === E.key), o = G.run.o, k = E.key
+  // 置き場所: 穴に落ちた結末はその穴から、じいさんが落ちた結末はじいさんの所、家の結末はおむすびの手前
+  let px, pz
+  if (k === 'korin' || k === 'kicked') { px = o.x; pz = o.z }
+  else if ((k === 'picked' || k === 'thrown') && G.dropH) { px = G.dropH.x; pz = G.dropH.z }
+  else if (k === 'greedyKorin' || k === 'kindKorin') { px = gpaG.position.x; pz = gpaG.position.z }
+  else { const dx = camera.position.x - oni.position.x, dz = camera.position.z - oni.position.z, d = Math.hypot(dx, dz) || 1; px = oni.position.x + dx / d * 0.5 + dz / d * 0.95; pz = oni.position.z + dz / d * 0.5 - dx / d * 0.95 } // おむすびの横（手前に置くとおむすびが隠れる）
+  const item = pickTama(def.stamp)
+  const g = new THREE.Group(), box = makeTsuzura(), it = makeItem(item.shape, lang === 'ja')
+  g.add(box); it.visible = false; g.add(it)
+  const mice = [makeMouse(), makeMouse({ band: 1 })]; mice.forEach((m, i) => { m.position.set((i ? 1 : -1) * 0.48, 0, 0.08); g.add(m) })
+  const gy = height(px, pz)
+  g.position.set(px, gy - 0.6, pz)
+  // 正面を向ける向き: おじいさんが近くにいれば、その反対側から写す（手前に被らない）。いなければ今のカメラの方
+  const gp = gpaG.position, gd = Math.hypot(gp.x - px, gp.z - pz)
+  g.rotation.y = gpaG.visible !== false && gd < 3.5 && gd > 0.05 ? Math.atan2(px - gp.x, pz - gp.z) + 0.95 : Math.atan2(camera.position.x - px, camera.position.z - pz)
+  // 足元の穴のふちのねずみは隠す（つづらの手前に被る）
+  for (const H of HV) if (Math.hypot(H.h.x - px, H.h.z - pz) < 1.2) H.mouse.visible = false
+  scene.add(g); G.tamaG = g
+  G.tama = { t: 0, item, box, it, mice, gy, px, pz, opened: 0, said: 0 }
+  grade.uniforms.dark.value = Math.min(grade.uniforms.dark.value, 0.12)
+  hideBub()
+}
+function updateTama(dt) {
+  const T = G.tama, g = G.tamaG; T.t += dt
+  const t = T.t, rise = Math.min(1, t / 0.7), e = 1 - Math.pow(1 - rise, 3)
+  g.position.y = T.gy - 0.6 + e * 0.6
+  T.mice.forEach((m, i) => { m.userData.armL.rotation.z = -0.6 - Math.sin(t * 9 + i) * 0.5; m.userData.armR.rotation.z = 0.6 + Math.sin(t * 9 + i) * 0.5; m.rotation.y = (i ? -1 : 1) * 0.35 })
+  if (!T.said && t > 0.5) { T.said = 1; Snd.play('sq', { vol: 0.8 }); T.mice[1].getWorldPosition(_w); _w.y += 0.5; say(t_('bub').mGift, null, { mouse: 1, pos: _w, extra: 0.3 }) }
+  // ふたが開いて、中身が飛び出す
+  if (t > 1.2) {
+    const lo = Math.min(1, (t - 1.2) / 0.22); T.box.userData.lid.rotation.x = -lo * 2.45
+    if (!T.opened) {
+      T.opened = 1; T.it.visible = true; Snd.play('wood', { vol: 0.9 })
+      const p = _v.set(T.px, T.gy + 0.4, T.pz)
+      if (T.item.shape === 'empty') dust(p, 14, [0.75, 0.7, 0.62]); else riceBurst(p, T.item.rare ? 30 : 12)
+      if (T.item.rare) Snd.play('j_rare', { vol: 0.7, jitter: 0, delay: 0.25 })
+      showTamaCard(T.item)
+    }
+    const f = Math.min(1, (t - 1.2) / 0.5), up = f < 1 ? Math.sin(f * Math.PI * 0.5) * 0.95 : 0.95 - Math.min(0.28, (t - 1.7) * 0.6)
+    T.it.position.set(0, T.box.userData.H + 0.05 + up, 0.02)
+    // 紙の物は回さない（裏から写ると字が鏡文字になる）。正面のまま少し揺らす
+    const flat = ['bill', 'card', 'photo', 'nori'].includes(T.item.shape)
+    T.it.rotation.y = flat ? Math.sin(t * 2.2) * 0.25 : t * (T.item.shape === 'box' ? 1.2 : 1.8); T.it.scale.setScalar(Math.min(1, f * 1.6))
+  }
+  // 近くから見る
+  const bx = T.px, bz = T.pz, gy = T.gy, dx = Math.sin(g.rotation.y), dz = Math.cos(g.rotation.y)
+  _v.set(bx + dx * 2.7, gy + 1.55, bz + dz * 2.7); _w.set(bx, gy + 0.6, bz)
+  camTo(_v, _w, dt, 3)
+  if (gpa) gpa.update(dt)
+  if (t > 3.6) { hideTamaCard(); showResult() }
+}
+function showTamaCard(item) { const el = $('tama'), L = t_('tama')[item.key]; el.querySelector('b').textContent = L[0]; el.querySelector('span').textContent = L[1]; el.querySelector('small').textContent = t_('tamaHead'); el.classList.toggle('rare', !!item.rare); el.classList.add('on') }
+function hideTamaCard() { $('tama').classList.remove('on') }
 
 // ------------------------------------------------------------ 結果: 絵本の1ページ
 function showResult() {
   const E = G.end, def = ENDINGS.find(q => q.key === E.key)
   // 今の3Dの絵を撮る（描いた直後に写す）
+  // つづらがあれば、撮る瞬間だけ画角を広げて、つづらと中身を中心に切り抜く（縦長の画面の真ん中だけだと中身が切れる）
+  const fov0 = camera.fov; let cy = 0.5
+  if (G.tamaG) {
+    camera.fov = Math.min(100, fov0 * (camera.aspect < 1 ? 1.55 : 1.15)); camera.updateProjectionMatrix()
+    G.tamaG.getWorldPosition(_v); _v.y += 0.6; _v.project(camera); cy = clamp(0.5 - _v.y * 0.5, 0.2, 0.8)
+  }
   composer.render()
   const snap = document.createElement('canvas'); snap.width = 960; snap.height = 640
-  { const s = renderer.domElement, sw = s.width, sh = s.height, ar = 960 / 640; let w = sw, h = sw / ar; if (h > sh) { h = sh; w = sh * ar } snap.getContext('2d').drawImage(s, (sw - w) / 2, (sh - h) / 2, w, h, 0, 0, 960, 640) }
+  { const s = renderer.domElement, sw = s.width, sh = s.height, ar = 960 / 640; let w = sw, h = sw / ar; if (h > sh) { h = sh; w = sh * ar } const sy = clamp(sh * cy - h / 2, 0, sh - h); snap.getContext('2d').drawImage(s, (sw - w) / 2, sy, w, h, 0, 0, 960, 640) }
+  if (camera.fov !== fov0) { camera.fov = fov0; camera.updateProjectionMatrix() }
   const first = !G.zukan[E.key]
   G.zukan[E.key] = 1; LS.set('zukan', JSON.stringify(G.zukan))
   const m = Math.max(0, Math.round(G.run.o.z)); if (m > +LS.get('best', 0)) LS.set('best', m)
   if (!G.tutDone) { G.tutDone = true; LS.set('tut', '1') }
-  G.result = { key: E.key, m, def, snap }
+  G.result = { key: E.key, m, def, snap, tama: G.tama ? G.tama.item : null }
   enter('result')
   $('newEnd').textContent = first ? t('newEnd') : ''
   drawPage().then(() => { const c = $('res'); c.classList.remove('in'); void c.offsetWidth; c.classList.add('in') })
@@ -539,6 +617,21 @@ async function drawPage() {
   x.drawImage(R.snap, 0, 0)
   const g = x.createRadialGradient(480, 320, 300, 480, 320, 620); g.addColorStop(0, 'rgba(243,234,214,0)'); g.addColorStop(1, 'rgba(243,234,214,.55)'); x.fillStyle = g; x.fillRect(0, 0, 960, 640)
   x.strokeStyle = 'rgba(60,40,20,.55)'; x.lineWidth = 3; x.strokeRect(0, 0, 960, 640)
+  // おみやげの札（絵の左下に貼る）
+  if (R.tama) {
+    const L = t('tama')[R.tama.key], head = t('tamaLabel') + (lang === 'ja' ? '：' : ': ') + L[0]
+    x.font = '700 30px "Zen Kaku Gothic New", sans-serif'; const w1 = x.measureText(head).width
+    x.font = '400 28px "Zen Kurenaido", sans-serif'; const w2 = x.measureText(L[1]).width
+    const bw = Math.min(900, Math.max(w1, w2) + 48), bh = 104
+    x.save(); x.translate(24, 640 - bh - 24); x.rotate(-0.012)
+    x.fillStyle = 'rgba(40,25,10,.25)'; x.fillRect(4, 5, bw, bh)
+    x.fillStyle = R.tama.rare ? '#f6e3a8' : '#f6eedc'; x.fillRect(0, 0, bw, bh)
+    x.fillStyle = '#c23a2b'; x.fillRect(0, 0, 8, bh)
+    x.fillStyle = '#2a2320'; x.textBaseline = 'alphabetic'
+    x.font = '700 30px "Zen Kaku Gothic New", sans-serif'; x.fillText(head, 26, 42, bw - 40)
+    x.font = '400 28px "Zen Kurenaido", sans-serif'; x.fillStyle = '#5a4630'; x.fillText(L[1], 26, 84, bw - 40)
+    x.restore()
+  }
   x.restore()
   // どちらの昔話か
   x.fillStyle = G.mode === 'kind' ? '#2f4a72' : '#8a4a2a'; x.fillRect(60, 742, 14, 44)
@@ -674,6 +767,8 @@ window.omuApi = {
   render() { composer.render() },
   obj: () => ({ oni, gpaG, gpa, HV, camera, frame }),
   setO(o) { Object.assign(G.run.o, o); G.prev = null },
+  forceTama(k) { G.forceTama = k || null },
+  tama: () => G.tama && { t: G.tama.t, key: G.tama.item.key },
   stepN(n, inp) { G.forceInp = inp || null; for (let i = 0; i < n; i++) frame(1 / 60); G.forceInp = null },
 }
 
