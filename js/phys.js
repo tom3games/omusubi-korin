@@ -1,9 +1,9 @@
 // おむすびとおじいさんの動き（three を使わない。固定 60Hz。同じ入力なら同じ結果）
-import { OBJ, HOLE, START_R, S_END, SURF, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=1'
+import { OBJ, HOLE, START_R, S_END, SURF, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=2'
 
 export const DT = 1 / 60
 export const TUNE = {
-  g: 12.5, cd: 0.010, roll: 0.25, steer: 13, latDamp: 3.2, vmax: 12.5,
+  g: 12.5, gk: 0.45, cd: 0.008, roll: 1.35, pushV: 3.1, latV: 3.2, latDamp: 3.0, vmax: 11, stopV: 0.3,
   grow: 0.0075, maxR: 0.62, chip: [0.012, 0.0016],
   // おじいさん
   kind: { vmax: 15, acc: 6, catchD: 0.95, follow: 0.97, close: 0.45, far: 9 },
@@ -19,7 +19,7 @@ export function newRun(seed = 1, opt = {}) {
   const holes = makeHoles(seed)
   return {
     seed, mode, t: 0, steps: 0, holes, digs: digPlan(seed), digI: 0,
-    o: mode === 'kind' ? { x: cx(-3.6) + 1.5, z: -3.6, vx: -0.4, vz: 2.6, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 } : { x: cx(-2.2), z: -2.2, vx: 0, vz: 5.8, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 },
+    o: mode === 'kind' ? { x: cx(-3.6) + 1.5, z: -3.6, vx: -0.3, vz: 2.2, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 } : { x: cx(-2.2), z: -2.2, vx: 0, vz: 5.0, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 },
     g: mode === 'kind' ? { x: cx(-5.2) + 2.7, z: -5.2, v: 0, st: 'wait', tm: 1.1, aimX: 0, cool: 1.5, hist: [] } : { x: cx(-3.6), z: -3.6, v: 0, st: 'wait', tm: 0.5, aimX: 0, cool: 1.5, hist: [] },
     alive: new Uint8Array(OBJ.length).fill(1), cd: new Float32Array(OBJ.length), hcd: new Float32Array(holes.length),
     ev: [], end: null, done: false, lastKick: -9,
@@ -49,20 +49,31 @@ export function step(run, inp) {
   const gx = (height(o.x + e, o.z) - height(o.x - e, o.z)) / (2 * e)
   const gz = (height(o.x, o.z + e) - height(o.x, o.z - e)) / (2 * e)
   const sf = surfaceAt(o.x, o.z), S = SURF[sf]
-  let ax = -T.g * gx, az = -T.g * gz
+  // 坂で少しずつ転がるが、押さないと止まる（転がりの抵抗が坂より強い）
+  let ax = -T.g * T.gk * gx, az = -T.g * T.gk * gz
   const v = Math.hypot(o.vx, o.vz) || 1e-6
   const drag = T.cd * (1 + S.drag * 3)
   ax -= drag * v * o.vx; az -= drag * v * o.vz
-  ax -= T.roll * (1 + S.drag) * o.vx / v; az -= T.roll * (1 + S.drag) * o.vz / v
-  // 左右（大きいほど重くて曲がりにくい）。+ は画面の右 = -x
-  const st = clamp(inp.steer || 0, -1, 1)
-  const dcx = (cx(o.z + 1) - cx(o.z - 1)) / 2
-  const lat = o.vx - dcx * o.vz
-  ax += -st * T.steer / (0.55 + 1.5 * o.r) - lat * T.latDamp * (st === 0 ? 1 : 0.35)
+  const fr = T.roll * (1 + S.drag) * (v > 0.02 ? 1 : 0)
+  ax -= fr * o.vx / v; az -= fr * o.vz / v
+  // 道に対する横すべりは少しずつ止まる
+  const dcx = (cx(o.z + 1) - cx(o.z - 1)) / 2, fl = Math.hypot(dcx, 1), fx = dcx / fl, fz = 1 / fl
+  const latV = o.vx * fz - o.vz * fx
+  ax -= latV * fz * T.latDamp; az += latV * fx * T.latDamp
   o.vx += ax * DT; o.vz += az * DT
-  if (o.vz < 0.8 && o.z < S_END - 4) o.vz += (0.8 - o.vz) * 0.25
+  // はじく（スワイプ1回 = 1回の押し）。push は前へ、lat は横（+ で画面の右 = -x）。大きいほど重い
+  const push = clamp(inp.push || 0, 0, 1.3), lat = clamp(inp.lat || 0, -1.3, 1.3)
+  if (push || lat) {
+    const heavy = 1 / (0.55 + 1.5 * o.r)
+    const dvF = T.pushV * push * heavy, dvL = -T.latV * lat * heavy
+    o.vx += fx * dvF + fz * dvL; o.vz += fz * dvF - fx * dvL
+    run.st.pushes = (run.st.pushes || 0) + (push > 0.2 ? 1 : 0)
+    emit(run, 'push', { push, lat })
+  }
   let sp = Math.hypot(o.vx, o.vz)
   if (sp > T.vmax) { o.vx *= T.vmax / sp; o.vz *= T.vmax / sp; sp = T.vmax }
+  // 止まる（ゆっくりなら転がりの抵抗で止まりきる）
+  if (sp < T.stopV && !push) { o.vx = o.vz = 0; sp = 0; run.stillT = (run.stillT || 0) + DT; if (run.stillT > 0.3 && !run.stopEv) { run.stopEv = 1; emit(run, 'stop') } } else { run.stillT = 0; run.stopEv = 0 }
   const px = o.x, pz = o.z
   o.x += o.vx * DT; o.z += o.vz * DT
   const ds = Math.hypot(o.x - px, o.z - pz)
@@ -135,6 +146,7 @@ function dig(run) {
   const o = run.o
   if (run.digI >= run.digs.length || o.z < run.digs[run.digI]) return
   run.digI++
+  if (o.r >= HOLE.big) { emit(run, 'digGiveUp'); return } // 大きすぎると、ねずみは掘るのをあきらめる
   const lead = clamp(o.sp * 1.25, 4, 11), z = o.z + lead
   const w = widths(z), hr = Math.min(HOLE.big, Math.max(HOLE.small, o.r + 0.07))
   const x = cx(z) + clamp(o.x + o.vx / Math.max(1, o.vz) * lead - cx(z), -(w.road - 0.4), w.road - 0.4)
@@ -163,7 +175,7 @@ function grandpa(run, inp) {
   if (gap < run.st.minGap) run.st.minGap = gap
   // 穴に足を取られる・大きい穴には落ちる
   // 穴をよける。ただし、おむすびのすぐ後ろ（3m 以内）では足元を見ていない
-  const focus = gap < 3.2
+  const focus = run.mode === 'kind' ? false : gap < 3.2
   if (!focus) for (const h of run.holes) {
     if (h.z < g.z + 0.3 || h.z > g.z + 3 || !holeOpen(run, h)) continue
     const side = g.x - h.x, need = h.hr + 0.5
@@ -177,13 +189,15 @@ function grandpa(run, inp) {
       if (!h.gHit) { h.gHit = 1; g.st = 'trip'; g.tm = h.size === 'mid' ? 1.0 : 0.55; g.v = 0; run.st.gTrips++; emit(run, 'gTrip', { h: h.i }); return }
     }
   }
+  // 追いつかれたら拾われて、穴に落とされる（やさしいおじいさんは手がすべる・いじわるじいさんは放りこむ）
   if (run.mode === 'kind') {
     if (gap < M.catchD && o.z < S_END - 6) { emit(run, 'gCatch'); return finish(run, 'picked') }
     return
   }
+  if (gap < 0.95 && o.sp < 2.5 && o.z < S_END - 6) { emit(run, 'gCatch'); return finish(run, 'thrown') }
   // いじわるじいさん: 蹴る
   g.cool -= DT
-  if (g.st === 'run' && g.cool <= 0 && gap < M.kickD && o.z < S_END - 10) { g.st = 'windup'; g.tm = M.windup; g.aimX = o.x; emit(run, 'windup') }
+  if (g.st === 'run' && g.cool <= 0 && gap < M.kickD && o.sp >= 2.5 && o.z < S_END - 10) { g.st = 'windup'; g.tm = M.windup; g.aimX = o.x; emit(run, 'windup') }
   else if (g.st === 'windup') {
     g.tm -= DT
     if (g.tm <= 0) {

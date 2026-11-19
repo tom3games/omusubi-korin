@@ -91,7 +91,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 #tut{position:absolute;left:0;right:0;bottom:calc(40px + env(safe-area-inset-bottom) + var(--inapp-bot,0px));display:flex;flex-direction:column;align-items:center;gap:6px;transition:opacity .5s}
 #tut svg{width:120px;height:60px}
 #tut .hand{animation:swipe 1.6s ease-in-out infinite}
-@keyframes swipe{0%,100%{transform:translateX(-26px)}50%{transform:translateX(26px)}}
+@keyframes swipe{0%{transform:translate(-14px,10px);opacity:0}15%{opacity:1}70%{transform:translate(18px,-22px);opacity:1}100%{transform:translate(18px,-22px);opacity:0}}
 #tut p{font-size:15px;font-weight:700;background:rgba(243,234,214,.92);padding:4px 12px;border-radius:3px}
 #vPlay.cine #emaki,#vPlay.cine #tut,#vPlay.cine #secT,#vPlay.cine #pop{visibility:hidden}
 
@@ -146,7 +146,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   <div id="intro" class="washi"><span id="introT"></span><small id="introS"></small></div>
   <div id="bub"></div>
   <div id="pop"></div>
-  <div id="tut"><svg viewBox="0 0 120 60" aria-hidden="true"><path d="M20 50 H100" stroke="rgba(255,255,255,.8)" stroke-width="3" stroke-dasharray="4 6" stroke-linecap="round"/><g class="hand"><path d="M54 52 V26 c0-4 6-4 6 0 v12 l2-14 c0-4 6-4 6 0 v14 l2-10 c0-4 6-3 6 1 v16 c0 8-4 12-12 12 h-4 c-6 0-9-3-11-8 l-5-10 c-2-4 3-7 6-3z" fill="#f3ead6" stroke="#2a2320" stroke-width="2.5" stroke-linejoin="round"/></g></svg><p id="tutT"></p></div>
+  <div id="tut"><svg viewBox="0 0 120 60" aria-hidden="true"><path d="M46 56 L82 14" stroke="rgba(255,255,255,.85)" stroke-width="3" stroke-dasharray="4 6" stroke-linecap="round"/><path d="M74 12 L84 12 L82 22" stroke="rgba(255,255,255,.85)" stroke-width="3" fill="none" stroke-linecap="round"/><g class="hand"><path d="M54 52 V26 c0-4 6-4 6 0 v12 l2-14 c0-4 6-4 6 0 v14 l2-10 c0-4 6-3 6 1 v16 c0 8-4 12-12 12 h-4 c-6 0-9-3-11-8 l-5-10 c-2-4 3-7 6-3z" fill="#f3ead6" stroke="#2a2320" stroke-width="2.5" stroke-linejoin="round"/></g></svg><p id="tutT"></p></div>
 </main>
 
 <main id="vEnd" class="layer" hidden>
@@ -188,7 +188,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 <script src="tm.js?v=1" data-game="omusubi-korin"></script>
 <script src="sfx.js?v=1"></script>
-<script type="module" src="js/game.js?v=1"></script>
+<script type="module" src="js/game.js?v=2"></script>
 <script src="support.js?v=1" data-ja="おむすび" data-en="a rice ball"></script>
 </body>
 </html>

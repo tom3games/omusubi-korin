@@ -5,15 +5,15 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { ShaderPass } from '../vendor/jsm/postprocessing/ShaderPass.js'
-import { TXT, ENDINGS } from './data.js?v=1'
-import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=1'
-import { newRun, step, DT, holeOpen } from './phys.js?v=1'
-import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=1'
-import { loadChars, Person } from './chars.js?v=1'
-import { makeBot } from './bot.js?v=1'
+import { TXT, ENDINGS } from './data.js?v=2'
+import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=2'
+import { newRun, step, DT, holeOpen } from './phys.js?v=2'
+import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=2'
+import { loadChars, Person } from './chars.js?v=2'
+import { makeBot } from './bot.js?v=2'
 
 window.__jsUp = true
-const V = '?v=1'
+const V = '?v=2'
 const $ = id => document.getElementById(id)
 const Q = new URLSearchParams(location.search)
 const isTouch = matchMedia('(pointer: coarse)').matches
@@ -90,7 +90,7 @@ function setMuteIcons() { for (const b of [$('bMute'), $('bMute2')]) { b.querySe
 for (const b of [$('bMute'), $('bMute2')]) b.onclick = e => { e.stopPropagation(); startAudio(); Snd.setMute(!Snd.muted); LS.set('mute', Snd.muted ? '1' : '0'); setMuteIcons() }
 
 // ------------------------------------------------------------ 状態
-const G = { state: 'load', run: null, mode: 'kind', inp: { steer: 0 }, keys: new Set(), drag: null, acc: 0, last: 0, prev: null, camPos: new THREE.Vector3(), camLook: new THREE.Vector3(), camDir: new THREE.Vector3(0, 0, 1), shake: 0, bubQ: [], bub: null, introT: 0, endT: 0, end: null, zukan: {}, paused: false, bot: null, tutDone: false, sec: '', mouseSay: 0, seed: 1 }
+const G = { state: 'load', run: null, mode: 'kind', inp: {}, imp: { push: 0, lat: 0 }, swipes: 0, keys: new Set(), drag: null, acc: 0, last: 0, prev: null, camPos: new THREE.Vector3(), camLook: new THREE.Vector3(), camDir: new THREE.Vector3(0, 0, 1), shake: 0, bubQ: [], bub: null, introT: 0, endT: 0, end: null, zukan: {}, paused: false, bot: null, tutDone: false, sec: '', mouseSay: 0, seed: 1 }
 window.omu = G
 try { G.zukan = JSON.parse(LS.get('zukan', '{}')) } catch (e) { G.zukan = {} }
 G.tutDone = LS.get('tut', '0') === '1'
@@ -191,7 +191,7 @@ function setupRun(seed, mode) {
   oni.setFace('calm')
   if (mode === 'kind') { oni.position.set(cx(-4.5) + 1.6 + 0.1, height(cx(-4.5) + 1.6, -4.5) + 0.45 + supportH(START_R, 0) + 0.02, -4.4); oni.userData.spin.rotation.x = 0 }
   else placeOni()
-  G.end = null; G.endT = 0; G.prev = null; G.acc = 0; G.sec = ''; G.inp.steer = 0; G.drag = null
+  G.end = null; G.endT = 0; G.prev = null; G.acc = 0; G.sec = ''; G.inp = {}; G.imp.push = 0; G.imp.lat = 0; G.swipes = 0; G.drag = null
   G.camDir.set(0, 0, 1); grade.uniforms.dark.value = 0
   babaG.visible = true; baba.play('sit')
   drawEmaki()
@@ -216,23 +216,36 @@ function beginPlay() {
   camSnap()
 }
 
-// ------------------------------------------------------------ 入力: 指を左右にずらす（指と同じ向きへ）
-const KEYMAP = { ArrowLeft: -1, a: -1, A: -1, ArrowRight: 1, d: 1, D: 1 }
-addEventListener('keydown', e => { if (e.key in KEYMAP) { G.keys.add(e.key); e.preventDefault() } if ((e.key === ' ' || e.key === 'Enter') && G.state === 'intro') beginPlay() })
-addEventListener('keyup', e => G.keys.delete(e.key))
+// ------------------------------------------------------------ 入力: 指ではじく（前へはじくと転がる・斜めにはじくと曲がる）
+// 1回のスワイプ = 1回の押し。画面の上 = 前、右 = 右。速くはじくほど少し強い
+function swipe(dx, dy, ms) {
+  const d = Math.hypot(dx, dy), unit = Math.min(130, innerWidth * 0.3)
+  const spd = clamp(0.8 + (d / Math.max(16, ms)) * 0.22, 0.8, 1.25)
+  const push = clamp(-dy / unit, 0, 1) * spd, lat = clamp(dx / unit, -1, 1) * spd
+  G.imp.push = Math.min(1.3, G.imp.push + push); G.imp.lat = clamp(G.imp.lat + lat, -1.3, 1.3)
+  G.swipes++
+}
+const KEYS = { ArrowUp: [0.9, 0], w: [0.9, 0], W: [0.9, 0], ArrowLeft: [0, -0.7], a: [0, -0.7], A: [0, -0.7], ArrowRight: [0, 0.7], d: [0, 0.7], D: [0, 0.7] }
+addEventListener('keydown', e => {
+  if (e.key in KEYS && G.state === 'play') { const [p, l] = KEYS[e.key]; G.imp.push = Math.min(1.3, G.imp.push + p); G.imp.lat = clamp(G.imp.lat + l, -1.3, 1.3); G.swipes++; e.preventDefault() }
+  if ((e.key === ' ' || e.key === 'Enter') && G.state === 'intro') beginPlay()
+})
 const cv = renderer.domElement
-cv.addEventListener('pointerdown', e => { if (G.state === 'intro') { beginPlay() } if (G.state !== 'play' && G.state !== 'intro') return; G.drag = { id: e.pointerId, x0: e.clientX, x: e.clientX }; try { cv.setPointerCapture(e.pointerId) } catch (er) {} })
-cv.addEventListener('pointermove', e => { if (G.drag && e.pointerId === G.drag.id) { G.drag.x = e.clientX; const span = Math.min(innerWidth * 0.16, 70); if (Math.abs(G.drag.x - G.drag.x0) > span) G.drag.x0 = G.drag.x - Math.sign(G.drag.x - G.drag.x0) * span } })
-const endDrag = e => { if (G.drag && e.pointerId === G.drag.id) G.drag = null }
-cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag)
+cv.addEventListener('pointerdown', e => { if (G.state === 'intro') { beginPlay() } if (G.state !== 'play' && G.state !== 'intro') return; G.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now() }; try { cv.setPointerCapture(e.pointerId) } catch (er) {} })
+cv.addEventListener('pointermove', e => {
+  const D = G.drag; if (!D || e.pointerId !== D.id) return
+  const dx = e.clientX - D.x0, dy = e.clientY - D.y0
+  // 指を離さずに続けてなぞっても、70px ごとに1回はじいたことにする
+  if (Math.hypot(dx, dy) > 70) { swipe(dx, dy, performance.now() - D.t0); D.x0 = e.clientX; D.y0 = e.clientY; D.t0 = performance.now(); D.used = 1 }
+})
+const endDrag = e => { const D = G.drag; if (!D || e.pointerId !== D.id) return; const dx = e.clientX - D.x0, dy = e.clientY - D.y0; if (Math.hypot(dx, dy) > 20) swipe(dx, dy, performance.now() - D.t0); G.drag = null }
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', e => { G.drag = null })
 $('vPlay').addEventListener('pointerdown', e => { if (G.state === 'intro' && !e.target.closest('button')) beginPlay() })
 function readInput() {
   if (G.forceInp) return G.forceInp
   if (G.bot) return G.bot(G.run)
-  let s = 0
-  for (const k of G.keys) s += KEYMAP[k] || 0
-  if (G.drag) { const span = Math.min(innerWidth * 0.16, 70); s += (G.drag.x - G.drag.x0) / span }
-  return { steer: clamp(s, -1, 1) }
+  if (!G.imp.push && !G.imp.lat) return {}
+  const r = { push: G.imp.push, lat: G.imp.lat }; G.imp.push = 0; G.imp.lat = 0; return r
 }
 
 // ------------------------------------------------------------ おむすびを置く・動かす
@@ -339,7 +352,10 @@ function onEvent(e) {
     case 'kick': Snd.play('kick', { vol: 1 }); G.shake = 0.25; dust(oni.position, 14); say(B.gKick, 'gpa'); break
     case 'whiff': gpa.play('fall', true); Snd.play('grunt', { vol: 0.8 }); say(B.gWhiff, 'gpa'); pop(PP.dodge); break
     case 'gFall': Snd.play('fall', { vol: 0.9 }); Snd.play('grunt', { vol: 0.9, delay: 0.15 }); gpaG.position.set(G.run.g.x, height(G.run.g.x, G.run.g.z), G.run.g.z); break
-    case 'gCatch': gpa.play('pick-up', true); say(B.kCatch, 'gpa'); break
+    case 'gCatch': gpa.play('pick-up', true); break
+    case 'stop': pop(t('pop').stop, true); oni.setFace('scared'); G.faceT = 99; say(G.mode === 'kind' ? B.kStop : B.gStop, 'gpa'); break
+    case 'push': if (e.push > 0.2) dust(oni.position, 3); if (G.faceT > 50) { G.faceT = 0.01 } break
+    case 'digGiveUp': say(B.mSad, null, { mouse: 1 }); break
     case 'end': startEnding(e.key); break
   }
 }
@@ -363,7 +379,7 @@ function updateHoles(dt) {
     if (!H.g.visible) continue
     // ねずみ: 入ってしまう大きさなら顔を出して手まねき、入らなければ引っこんでしょんぼり
     const fits = o.r < h.hr, near = dz > -2 && dz < 26
-    const want = G.end && (G.end.key === 'korin' || G.end.key === 'kicked') && G.end.h === h.i ? 1.25 : (fits && near ? 1 : 0.25)
+    const want = G.end && (((G.end.key === 'korin' || G.end.key === 'kicked') && G.end.h === h.i) || ((G.end.key === 'picked' || G.end.key === 'thrown') && G.dropH === h)) ? 1.25 : (fits && near ? 1 : 0.25)
     H.mood += (want - H.mood) * (1 - Math.exp(-dt * 4))
     H.ph += dt * (fits ? 9 : 2)
     const m = H.mouse, u = m.userData, hop = want > 1 ? Math.abs(Math.sin(H.ph * 0.9)) * 0.25 : 0
@@ -418,7 +434,21 @@ function startEnding(key) {
   hideBub()
   if (key === 'korin' || key === 'kicked') { say(B.mSing, null, { mouse: 1, pos: _w.set(G.run.o.x, height(G.run.o.x, G.run.o.z) + 0.7, G.run.o.z), extra: 1 }); Snd.play('sq', { vol: 0.8, delay: 0.9 }); Snd.play('sq', { vol: 0.7, delay: 1.3 }) }
   else if (key === 'greedyKorin' || key === 'kindKorin') { Snd.play('sq', { vol: 0.8, delay: 0.6 }) }
-  else if (key === 'picked') { Snd.play('eat', { vol: 0.9, delay: 1.2 }) }
+  else if (key === 'picked' || key === 'thrown') {
+    // 拾ったおむすびを落とす穴: 近くて、入る大きさの穴（無ければ一番近い穴）
+    // 近く（5m 以内）に入る大きさの穴があればそこ。無ければ、ねずみがその場で掘る
+    const gp = gpaG.position, r = G.run.o.r; let best = null, bd = 5
+    for (const h of G.run.holes) { if (!holeOpen(G.run, h) || h.hr <= r) continue; const d = Math.hypot(h.x - gp.x, h.z - gp.z); if (d < bd) { bd = d; best = h } }
+    if (!best) {
+      const fx = Math.sin(gpaG.rotation.y), fz = Math.cos(gpaG.rotation.y), hz = gp.z + fz * 1.6, w = widths(hz)
+      const hx = cx(hz) + clamp(gp.x + fx * 1.6 - cx(hz), -(w.road - 0.5), w.road - 0.5)
+      best = { x: hx, z: hz, hr: Math.min(0.52, Math.max(0.22, r + 0.07)), size: 'mid', t0: 0, i: G.run.holes.length, dug: 1 }
+      G.run.holes.push(best)
+      const H = addHoleVisual(best); H.g.scale.setScalar(0.05)
+      say(t('bub').mDig, null, { mouse: 1, pos: _w.set(hx, height(hx, hz) + 0.6, hz) }); Snd.play('sq', { vol: 0.7, delay: 0.3 })
+    } else if (!HV.find(H => H.h === best)) addHoleVisual(best)
+    G.dropH = best; G.dropSaid = 0; G.dropFx = 0
+  }
   else { say(B.baba, null, { pos: _w.set(babaG.position.x, babaG.position.y + 1.3, babaG.position.z), extra: 0.5 }); Snd.play('eat', { vol: 0.9, delay: 1.6 }) }
   if (key.startsWith('eaten') || key === 'greedyKorin') oni.setFace('happy')
 }
@@ -438,16 +468,32 @@ function updateEnding(dt) {
     fadeGpa(1, 1)
     camTo(_v, _w, dt, 2.2)
     oniVisualStop(dt)
-  } else if (k === 'picked') {
-    // おじいさんが拾って食べる
-    const s = Math.min(1, G.endT / 0.8)
-    _w.copy(gpaG.position).add(_v.set(Math.sin(gpaG.rotation.y) * 0.35, 0.95 * s + 0.2, Math.cos(gpaG.rotation.y) * 0.35))
-    oni.position.lerp(_w, Math.min(1, dt * 6))
-    if (G.endT > 1.2) { const b = Math.max(0.35, 1 - (G.endT - 1.2) * 0.4); oni.scale.setScalar(o.r * b) }
-    const fy = gpaG.rotation.y + 0.8
-    _v.set(gpaG.position.x + Math.sin(fy) * 2.8, gpaG.position.y + 1.7, gpaG.position.z + Math.cos(fy) * 2.8); _w.set(gpaG.position.x, gpaG.position.y + 1.0, gpaG.position.z)
+  } else if (k === 'picked' || k === 'thrown') {
+    // 拾って、いちばん近い穴まで歩いて、落とす
+    const h = G.dropH, gp = gpaG.position
+    const hand = _w.copy(gp).add(_v.set(Math.sin(gpaG.rotation.y) * 0.35, 1.05, Math.cos(gpaG.rotation.y) * 0.35))
+    if (G.endT < 0.8) { oni.position.lerp(hand, Math.min(1, dt * 6)) }
+    else if (G.endT < 2.4 && h) {
+      // 穴のふちまで歩く
+      const tx = h.x - Math.sin(gpaG.rotation.y) * 0.6, tz = h.z - Math.cos(gpaG.rotation.y) * 0.6, dx = tx - gp.x, dz = tz - gp.z, d = Math.hypot(dx, dz)
+      if (d > 0.05) { const st = Math.min(d, dt * 2.6); gp.x += dx / d * st; gp.z += dz / d * st; gp.y = height(gp.x, gp.z); gpaG.rotation.y = Math.atan2(h.x - gp.x, h.z - gp.z); if (gpa.anim !== 'walk') gpa.play('walk', true) }
+      else if (gpa.anim !== 'idle') { gpa.play('idle', true); if (!G.dropSaid) { G.dropSaid = 1; say(G.mode === 'kind' ? t('bub').kDrop : t('bub').gKick, 'gpa') } }
+      oni.position.lerp(hand, Math.min(1, dt * 8))
+    } else if (h) {
+      // 落ちる
+      const s2 = Math.min(1, (G.endT - 2.4) / 0.6)
+      _w.set(h.x, height(h.x, h.z) + 0.9 * (1 - s2) - s2 * s2 * 0.8, h.z)
+      oni.position.lerp(_w, Math.min(1, dt * 10)); oni.userData.spin.rotation.x += dt * 8
+      if (!G.dropFx && s2 > 0.6) { G.dropFx = 1; Snd.play('fall', { vol: 0.9 }); Snd.play('sq', { vol: 0.8, delay: 0.3 }); say(t('bub').mSing, null, { mouse: 1, pos: _v.set(h.x, height(h.x, h.z) + 0.7, h.z) }) }
+    }
+    // 横から見る。道の真ん中の側に立つ（土手に埋まらない）
+    const mx = (gp.x + (h ? h.x : gp.x)) / 2, mz = (gp.z + (h ? h.z : gp.z)) / 2, side = cx(mz) - mx >= 0 ? 1 : -1
+    _v.set(mx + side * 3.2, height(mx, mz) + 2.0, mz - 1.4); _w.set(mx, height(mx, mz) + 0.6, mz)
     fadeGpa(1, 1)
     camTo(_v, _w, dt, 2.5)
+    gpa.update(dt)
+    if (G.endT > 3.8) showResult()
+    return
   } else {
     // ふもとの家: 庭で止まって、家ごと見せる
     oniVisualStop(dt)
@@ -614,7 +660,7 @@ function playFx(dt) {
   const sec = sectionAt(o.z)
   if (sec !== G.sec) { G.sec = sec; if (t('sec')[sec]) { const el = $('secT'); el.textContent = t('sec')[sec]; el.classList.add('on'); clearTimeout(G.secTO); G.secTO = setTimeout(() => el.classList.remove('on'), 1800); if (sec === 'take' && Math.random() < 0.7) Snd.play('uguisu', { vol: 0.5, jitter: 0 }) } }
   // 操作の案内は、動かすか最初の穴を越えたら消す
-  if (!G.tutDone && (Math.abs(G.inp.steer) > 0.3 || o.z > 40)) { G.tutDone = true; LS.set('tut', '1'); $('tut').style.opacity = '0' }
+  if (!G.tutDone && (G.swipes >= 3 || o.z > 60)) { G.tutDone = true; LS.set('tut', '1'); $('tut').style.opacity = '0' }
 }
 
 // ------------------------------------------------------------ 検査用の窓口

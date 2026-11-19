@@ -12,7 +12,7 @@ await p.goto(`http://localhost:${PORT}/?lang=ja`)
 await p.waitForFunction(() => window.__omuReady, null, { timeout: 30000 })
 await p.waitForTimeout(2500)
 await p.evaluate(async () => {
-  const a = window.omuApi, C = await import('./js/course.js?v=1')
+  const a = window.omuApi, C = await import('./js/course.js?v=2')
   a.start('greedy', 11); a.dbg.pause(true)
   const h = a.run.holes.filter(q => q.size === 'big' && q.z > 440 && q.z < 520)[0]
   window.__h = h
@@ -29,7 +29,7 @@ await p.evaluate(async () => {
 // 足を振り上げた所でアニメを止める
 await p.evaluate(() => { const { gpa } = window.omuApi.obj(); gpa.update(0.33); if (gpa.act) gpa.act.paused = true })
 await p.evaluate(async () => {
-  const a = window.omuApi, C = await import('./js/course.js?v=1'), h = window.__h, { camera, HV, frame } = a.obj()
+  const a = window.omuApi, C = await import('./js/course.js?v=2'), h = window.__h, { camera, HV, frame } = a.obj()
   // ねずみは顔を出して手まねき
   for (const H of HV) { if (H.h !== h) continue; H.mood = 1; H.mouse.position.y = 0.0; H.mouse.userData.armL.rotation.z = -2.0; H.mouse.userData.armR.rotation.z = 1.6; H.mouse.rotation.y = Math.atan2(-2.4, -2.2) - H.g.rotation.y }
   const y = C.height(h.x, h.z)

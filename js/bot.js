@@ -1,19 +1,19 @@
 // 自動で遊ぶ（検査と sim と宣伝動画用）。three を使わない
-import { OBJ, cx, widths, clamp, rng } from './course.js?v=1'
+import { OBJ, cx, widths, clamp, rng } from './course.js?v=2'
 const ROCKS = OBJ.filter(b => !b.decor)
-import { holeOpen } from './phys.js?v=1'
+import { holeOpen } from './phys.js?v=2'
 
 // kind: 'none'（何もしない）/ 'center'（道の真ん中だけ）/ 'human'（人の速さ: 反応が遅れ、狙いがずれる）/ 'good'（上手い）/ 'paddy'（田んぼで太る）
 export function makeBot(kind = 'good', seed = 1) {
   const R = rng(seed * 991 + 1)
-  const lag = kind === 'human' ? 0.45 + R() * 0.35 : 0.06
+  const lag = kind === 'human' ? 0.45 + R() * 0.35 : kind === 'center' ? 0.6 : 0.3
   const err = kind === 'human' ? 0.35 : 0.05
-  let target = 0, nextThink = 0, tgtU = 0, dodgeT = 0
+  let nextThink = 0, tgtU = 0, fire = false
   return (run) => {
     const o = run.o
-    if (kind === 'none') return { steer: 0 }
+    if (kind === 'none') return {}
     if (run.t >= nextThink) {
-      nextThink = run.t + lag
+      nextThink = run.t + lag; fire = true
       if (kind === 'center') tgtU = 0
       else {
         // 前の 2〜11m の穴で、入ってしまう物を避ける位置を探す
@@ -39,9 +39,14 @@ export function makeBot(kind = 'good', seed = 1) {
         tgtU = best + (R() - 0.5) * 2 * err
       }
     }
-    const cu = o.x - cx(o.z)
-    const want = tgtU - cu
-    // + は画面の右 = -x
-    return { steer: clamp(-want * 1.6, -1, 1) }
+    if (!fire) return {}
+    fire = false
+    const cu = o.x - cx(o.z), want = tgtU - cu
+    // 横に動いている分も打ち消す（画面の右 = -x）
+    const dcx = (cx(o.z + 1) - cx(o.z - 1)) / 2, latV = (o.vx - dcx * o.vz) / Math.hypot(dcx, 1)
+    const lat = clamp(-(want * 0.75 - latV * 0.2), -1, 1)
+    const vT = kind === 'paddy' ? 5.5 : kind === 'human' ? 6.8 : 7.6
+    const push = o.sp < vT ? clamp((vT - o.sp) / 3, 0.35, 1) * (1 + (R() - 0.5) * err) : 0
+    return { push, lat: Math.abs(lat) > 0.08 ? lat : 0 }
   }
 }
