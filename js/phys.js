@@ -1,5 +1,5 @@
 // おむすびとおじいさんの動き（three を使わない。固定 60Hz。同じ入力なら同じ結果）
-import { OBJ, HOLE, START_R, S_END, SURF, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=3'
+import { OBJ, HOLE, START_R, S_END, SURF, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=4'
 
 export const DT = 1 / 60
 export const TUNE = {
@@ -20,7 +20,7 @@ export function newRun(seed = 1, opt = {}) {
   const mode = opt.mode || (R() < 0.5 ? 'kind' : 'greedy')
   const holes = makeHoles(seed)
   return {
-    seed, mode, t: 0, steps: 0, holes, digs: digPlan(seed), digI: 0,
+    seed, mode, t: 0, steps: 0, holes, digs: digPlan(seed), digI: 0, wplan: walkPlan(seed), wI: 0, walkers: [],
     o: mode === 'kind' ? { x: cx(-3.6) + 1.5, z: -3.6, vx: -0.3, vz: 2.2, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 } : { x: cx(-2.2), z: -2.2, vx: 0, vz: 5.0, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 },
     g: mode === 'kind' ? { x: cx(-5.2) + 2.7, z: -5.2, v: 0, st: 'wait', tm: 1.1, aimX: 0, cool: 1.5, hist: [] } : { x: cx(-3.6), z: -3.6, v: 0, st: 'wait', tm: 0.5, aimX: 0, cool: 1.5, hist: [] },
     alive: new Uint8Array(OBJ.length).fill(1), cd: new Float32Array(OBJ.length), hcd: new Float32Array(holes.length),
@@ -29,11 +29,11 @@ export function newRun(seed = 1, opt = {}) {
   }
 }
 export function cloneRun(run) {
-  return { ...run, o: { ...run.o }, g: { ...run.g, hist: run.g.hist.slice() }, holes: run.holes.map(h => ({ ...h })), digs: run.digs.slice(), alive: run.alive.slice(), cd: run.cd.slice(), hcd: run.hcd.slice(), ev: [], st: { ...run.st } }
+  return { ...run, o: { ...run.o }, g: { ...run.g, hist: run.g.hist.slice() }, holes: run.holes.map(h => ({ ...h })), digs: run.digs.slice(), wplan: run.wplan.slice(), walkers: run.walkers.map(w => ({ ...w })), alive: run.alive.slice(), cd: run.cd.slice(), hcd: run.hcd.slice(), ev: [], st: { ...run.st } }
 }
 function emit(run, k, o = {}) { run.ev.push({ k, ...o }) }
 function finish(run, key, extra = {}) { if (run.done) return; run.done = true; run.end = { key, r: run.o.r, z: run.o.z, x: run.o.x, t: run.t, ...extra }; emit(run, 'end', { key }) }
-export function holeOpen(run, h) { return run.t >= h.t0 }
+export function holeOpen(run, h) { return run.t >= h.t0 && !(h.t1 && run.t > h.t1) }
 // 着いた時の結末
 export function arriveEnding(run) {
   const r = run.o.r
@@ -90,6 +90,7 @@ export function step(run, inp) {
   o.bump = Math.max(0, o.bump - DT * 3)
   o.y = height(o.x, o.z)
   dig(run)
+  walkers(run)
   grandpa(run, inp)
   if (run.done) return
   if (o.z >= S_END) {
@@ -145,17 +146,53 @@ function holes(run, px, pz) {
 }
 
 // ねずみの里: 目の前に、ちょうど入る大きさの穴を掘る
+// 通行人（2026-11-20 本人「大きくしたら穴に落ちんから簡単。通行人が横切る・井戸水汲んできた帰りの人が横切る、みたいな難しさを」）
+// mizu: 水汲み帰り。天秤棒で桶を担いで、ゆっくり横切る。ぶつかると水をかぶってふやけ、ごっそり小さくなる
+// kodomo: 子ども。走って速く横切る。ぶつかると横へはじかれる
+// 大きいほど当たる幅が広いので、太って穴を消す作戦の邪魔になる
+export const WALK = { mizu: { v: 1.15, hw: 0.62 }, kodomo: { v: 2.7, hw: 0.22 } }
+export function walkPlan(seed) {
+  const R = rng(seed * 53 + 11), a = []
+  for (let s = 85 + R() * 20; s < 545; s += 62 + R() * 34) { const k = R() < 0.55 ? 'mizu' : 'kodomo', sd = R() < 0.5 ? -1 : 1; if (s > 422 && s < 538) continue; a.push({ z: +s.toFixed(1), kind: k, side: sd }) } // ねずみの里（掘る穴の区間）には出さない。重なると避けようがない
+  return a
+}
+function walkers(run) {
+  const o = run.o
+  // 出す: おむすびが手前（速さ×1.9 秒、8〜18m）まで来たら、道の端から歩き出す
+  while (run.wI < run.wplan.length && o.z >= run.wplan[run.wI].z - clamp(o.sp * 1.9, 8, 18)) {
+    const p = run.wplan[run.wI++], w = widths(p.z), K = WALK[p.kind]
+    run.walkers.push({ i: run.walkers.length, kind: p.kind, z: p.z, x: cx(p.z) + p.side * (w.road + 0.6), dir: -p.side, v: K.v, hw: K.hw, st: 'walk', stopT: 0, hit: 0 })
+    emit(run, 'walk', { i: run.walkers.length - 1 })
+  }
+  for (const w of run.walkers) {
+    if (w.st === 'gone') continue
+    if (w.st === 'stop') { w.stopT -= DT; if (w.stopT <= 0) w.st = 'walk'; }
+    else { w.x += w.dir * w.v * DT; const u = (w.x - cx(w.z)) * w.dir; if (u > widths(w.z).road + 1.6) { w.st = 'gone'; continue } }
+    if (w.hit) continue
+    const rr = o.r * 0.85
+    if (Math.abs(o.z - w.z) < 0.28 + rr && Math.abs(o.x - w.x) < w.hw + rr) {
+      w.hit = 1; let dr
+      if (w.kind === 'mizu') { dr = -(0.012 + 0.16 * o.r * o.r); o.vz *= 0.3; o.vx *= 0.4; w.st = 'stop'; w.stopT = 1.4 }
+      else { dr = -0.008; o.vz *= 0.55; o.vx += w.dir * 2.4 }
+      o.r = Math.max(TUNE.minR, o.r + dr); o.bump = 1
+      run.st.wHits = (run.st.wHits || 0) + 1
+      emit(run, 'wHit', { i: w.i, kind: w.kind, dr })
+    }
+  }
+}
 function dig(run) {
   const o = run.o
   if (run.digI >= run.digs.length || o.z < run.digs[run.digI]) return
   run.digI++
-  if (o.r >= HOLE.big) { emit(run, 'digGiveUp'); return } // 大きすぎると、ねずみは掘るのをあきらめる
+  // 大きいと、ねずみが総出で大穴を掘る（2026-11-20 本人「大きくしたら穴に落ちんから簡単」）。
+  // 大穴はおむすびが通り過ぎたら閉じる（閉じないと、追ってくるやさしいおじいさんが毎回落ちる）
+  const huge = o.r >= 0.48
   const lead = clamp(o.sp * 1.6, 5, 13), z = o.z + lead
-  const w = widths(z), hr = Math.min(HOLE.big, Math.max(HOLE.small, o.r + 0.07))
+  const w = widths(z), hr = huge ? Math.min(0.74, o.r + 0.08) : Math.min(0.52, Math.max(HOLE.small, o.r + 0.07))
   const x = cx(z) + clamp(o.x + o.vx / Math.max(1, o.vz) * lead - cx(z), -(w.road - 0.4), w.road - 0.4)
-  const h = { x, z, hr, size: hr >= HOLE.big ? 'big' : hr >= HOLE.mid ? 'mid' : 'small', t0: run.t + 0.95, i: run.holes.length, dug: 1 }
+  const h = { x, z, hr, size: hr >= 0.5 ? 'big' : hr >= HOLE.mid ? 'mid' : 'small', t0: run.t + 0.95, i: run.holes.length, dug: 1, ...(huge ? { t1: run.t + 0.95 + lead / Math.max(3, o.sp) + 1.2, huge: 1 } : {}) }
   run.holes.push(h); run.hcd = Float32Array.from([...run.hcd, 0])
-  emit(run, 'dig', { h: h.i })
+  emit(run, 'dig', { h: h.i, huge })
 }
 
 // おじいさん: おむすびを追いかける。いじわるじいさんは追いつくと穴の方へ蹴る

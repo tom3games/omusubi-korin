@@ -34,6 +34,9 @@ export const LOOKS = {
   kind: { kind: 'character-male-b', recolor: [[256, 256, 64, 128, '#3f5f8f'], [320, 256, 64, 128, '#6b5a48'], [384, 384, 64, 128, '#f1efe9']], beard: 0xf2f0ea, kasa: 1 },
   greedy: { kind: 'character-male-b', recolor: [[256, 256, 64, 128, '#7a5230'], [320, 256, 64, 128, '#3a3030'], [384, 384, 64, 128, '#3a3a3a']], brows: 1, hachimaki: 1 },
   baba: { kind: 'character-female-c', recolor: [[320, 256, 64, 128, '#7a4f6a']] },
+  // 通行人（2026-11-20）: 水汲み帰りの人・子ども
+  mizu: { kind: 'character-female-c', recolor: [[256, 256, 64, 128, '#4f6f7a'], [320, 256, 64, 128, '#5a4a3a']] },
+  kodomo: { kind: 'character-male-b', recolor: [[256, 256, 64, 128, '#c8702a'], [320, 256, 64, 128, '#3a4a6a']] },
 }
 export class Person {
   constructor(parent, o = {}) {

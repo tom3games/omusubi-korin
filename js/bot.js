@@ -1,7 +1,7 @@
 // 自動で遊ぶ（検査と sim と宣伝動画用）。three を使わない
-import { OBJ, cx, widths, clamp, rng } from './course.js?v=3'
+import { OBJ, cx, widths, clamp, rng } from './course.js?v=4'
 const ROCKS = OBJ.filter(b => !b.decor)
-import { holeOpen } from './phys.js?v=3'
+import { holeOpen } from './phys.js?v=4'
 
 // kind: 'none'（何もしない）/ 'center'（道の真ん中だけ）/ 'human'（人の速さ: 反応が遅れ、狙いがずれる）/ 'good'（上手い）/ 'paddy'（田んぼで太る）
 export function makeBot(kind = 'good', seed = 1) {
@@ -32,6 +32,13 @@ export function makeBot(kind = 'good', seed = 1) {
             if (h.hr > o.r && d < h.hr + 0.55) s -= 20 / (1 + (h.z - o.z) * 0.15)
           }
           for (const b of ROCKS) { if (b.z < o.z + 0.5 || b.z > o.z + 10) continue; const d = Math.abs(b.x - cx(b.z) - u); if (d < b.r + o.r + 0.3) s -= 6 / (1 + (b.z - o.z) * 0.2) }
+          // 通行人: 着くころにいる位置を読んでよける
+          for (const wk of run.walkers || []) {
+            if (wk.st === 'gone' || wk.hit) continue
+            const dz = wk.z - o.z; if (dz < -0.3 || dz > 16) continue
+            const tt = Math.max(0, dz) / Math.max(3, o.sp), pu = wk.x - cx(wk.z) + (wk.st === 'walk' ? wk.dir * wk.v * tt : 0)
+            if (Math.abs(u - pu) < wk.hw + o.r + 0.45) s -= 14 / (1 + Math.max(0, dz) * 0.12)
+          }
           // いじわるじいさんが構えたら横へ逃げる
           if (run.g.st === 'windup') s += Math.min(3, Math.abs(u - (run.g.aimX - cx(o.z)))) * 3
           if (s > bs) { bs = s; best = u }

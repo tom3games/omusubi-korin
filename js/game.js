@@ -5,16 +5,16 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { ShaderPass } from '../vendor/jsm/postprocessing/ShaderPass.js'
-import { TXT, ENDINGS, TAMA } from './data.js?v=3'
-import { makeTsuzura, makeItem } from './tama.js?v=3'
-import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=3'
-import { newRun, step, DT, holeOpen } from './phys.js?v=3'
-import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=3'
-import { loadChars, Person } from './chars.js?v=3'
-import { makeBot } from './bot.js?v=3'
+import { TXT, ENDINGS, TAMA } from './data.js?v=4'
+import { makeTsuzura, makeItem } from './tama.js?v=4'
+import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=4'
+import { newRun, step, DT, holeOpen } from './phys.js?v=4'
+import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=4'
+import { loadChars, Person } from './chars.js?v=4'
+import { makeBot } from './bot.js?v=4'
 
 window.__jsUp = true
-const V = '?v=3'
+const V = '?v=4'
 const $ = id => document.getElementById(id)
 const Q = new URLSearchParams(location.search)
 const isTouch = matchMedia('(pointer: coarse)').matches
@@ -179,6 +179,8 @@ function setupRun(seed, mode) {
   G.run = newRun(seed, { mode })
   // 穴を作り直す
   for (const H of HV) scene.remove(H.g)
+  for (const V of WV) scene.remove(V.g)
+  WV.length = 0
   HV.length = 0
   for (const h of G.run.holes) HV.push(makeHole(scene, h))
   // おじいさん
@@ -351,7 +353,15 @@ function onEvent(e) {
     case 'over': Snd.play('wood', { vol: 0.8, rate: 0.8 }); G.shake = 0.08; pop(PP.over); dust(oni.position, 8); break
     case 'edge': pop(PP.edge, true); oni.setFace('scared'); G.faceT = 0.9; Snd.play('sq', { vol: 0.5 }); break
     case 'fall': { Snd.play('fall', { vol: 0.9 }); Snd.play('chu', { vol: 0.8, delay: 0.5 }); Snd.duck(0.3, 2.5); oni.setFace('scared'); break }
-    case 'dig': { const H = HV.find(q => q.h.i === e.h) || addHoleVisual(r.holes[e.h]); H.dig = 1; Snd.play('sq', { vol: 0.7 }); say(B.mDig, null, { mouse: 1, pos: _w.set(H.h.x, height(H.h.x, H.h.z) + 0.6, H.h.z) }); break }
+    case 'walk': addWalker(r.walkers[e.i]); break
+    case 'wHit': {
+      const w = r.walkers[e.i], V = WV.find(q => q.w.i === e.i), wp = _w.set(w.x, height(w.x, w.z) + 1.3, w.z)
+      if (e.kind === 'mizu') { Snd.play('splash', { vol: 0.9 }); for (let k = 0; k < 3; k++) dust(_v.set(oni.position.x, oni.position.y + 0.2, oni.position.z), 10, [0.55, 0.72, 0.9]); pop(PP.soggy, true); say(B.wMizu, null, { pos: wp }) }
+      else { Snd.play('wood', { vol: 0.8 }); riceBurst(oni.position, 6); pop(PP.kid); say(B.wKid, null, { pos: wp }) }
+      G.shake = 0.14; oni.setFace('dizzy'); G.faceT = 1.0; checkSize(); if (V) V.p.play('idle')
+      break
+    }
+    case 'dig': { const H = HV.find(q => q.h.i === e.h) || addHoleVisual(r.holes[e.h]); H.dig = 1; Snd.play('sq', { vol: 0.7 }); say(e.huge ? B.mDigBig : B.mDig, null, { mouse: 1, pos: _w.set(H.h.x, height(H.h.x, H.h.z) + 0.6, H.h.z) }); if (e.huge) Snd.play('sq', { vol: 0.8, delay: 0.25 }); break }
     case 'gRun': gpa.play('sprint', true); say(G.mode === 'kind' ? B.kRun : B.gRun, 'gpa'); break
     case 'gTrip': gpa.play('fall', true); Snd.play('grunt', { vol: 0.7 }); say(G.mode === 'kind' ? B.kTrip : B.gTrip, 'gpa'); break
     case 'windup': gpa.play('attack-kick-right', true, 0.55); say(B.gWindup, 'gpa'); oni.setFace('scared'); G.faceT = 0.7; break
@@ -378,6 +388,8 @@ function updateHoles(dt) {
   for (const H of HV) {
     const h = H.h, dz = h.z - o.z
     // 掘っている穴: 開くまで土を噴き、だんだん大きく
+    // 大穴は、通り過ぎたら閉じる
+    if (h.t1 && r.t > h.t1) { H.g.scale.setScalar(Math.max(0.001, H.g.scale.x - dt * 2.5)); if (H.g.scale.x <= 0.01) H.g.visible = false; continue }
     const open = holeOpen(r, h)
     if (!open) { const k = clamp(1 - (h.t0 - r.t) / 0.95, 0, 1); H.g.scale.setScalar(Math.max(0.001, k)); if (Math.random() < 0.6) dust(_w.set(h.x, height(h.x, h.z) + 0.1, h.z), 2, [0.45, 0.35, 0.25]) }
     else if (H.g.scale.x < 1) H.g.scale.setScalar(Math.min(1, H.g.scale.x + dt * 3))
@@ -402,6 +414,37 @@ let gpaAlpha = 1
 function fadeGpa(a, dt) {
   const na = gpaAlpha + (a - gpaAlpha) * Math.min(1, dt * 8); if (Math.abs(na - gpaAlpha) < 0.002) return; gpaAlpha = na
   gpaG.traverse(n => { if (n.isMesh) { n.material.transparent = gpaAlpha < 0.99; n.material.opacity = gpaAlpha; n.material.depthWrite = gpaAlpha > 0.99 } })
+}
+// 通行人の見た目（動きは phys.js の walkers）
+const WV = []
+function addWalker(w) {
+  const g = new THREE.Group(); scene.add(g)
+  const p = new Person(g, { look: w.kind, anim: w.kind === 'mizu' ? 'walk' : 'sprint', scale: w.kind === 'mizu' ? 1.0 : 0.72 })
+  if (w.kind === 'mizu') {
+    // 天秤棒と水桶（進む向きの前後に下げる）
+    const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: 0.9 }), rope = new THREE.MeshStandardMaterial({ color: 0xcdb98a, roughness: 1 })
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.35, 8), wood); pole.rotation.x = Math.PI / 2; pole.position.set(0.12, 0.74, 0); g.add(pole)
+    for (const s2 of [-1, 1]) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.13, 0.24, 14), wood); b.position.set(0.12, 0.3, s2 * 0.6); b.castShadow = true; g.add(b)
+      const water = new THREE.Mesh(new THREE.CircleGeometry(0.135, 14), new THREE.MeshStandardMaterial({ color: 0x5f8fae, roughness: 0.2 })); water.rotation.x = -Math.PI / 2; water.position.set(0.12, 0.41, s2 * 0.6); g.add(water)
+      const r1 = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.34, 4), rope); r1.position.set(0.12, 0.58, s2 * 0.6); g.add(r1)
+    }
+  }
+  WV.push({ g, p, w }); return WV[WV.length - 1]
+}
+function updateWalkers(dt) {
+  const r = G.run, o = r.o
+  for (const V of WV) {
+    const w = r.walkers[V.w.i] || V.w; V.w = w
+    const dz = w.z - o.z
+    V.g.visible = w.st !== 'gone' && dz > -10 && dz < 60
+    if (!V.g.visible) continue
+    V.g.position.set(w.x, height(w.x, w.z), w.z)
+    V.g.rotation.y = w.dir > 0 ? Math.PI / 2 : -Math.PI / 2
+    const want = w.st === 'stop' ? 'idle' : (w.kind === 'mizu' ? 'walk' : 'sprint')
+    if (V.p.anim !== want) V.p.play(want)
+    V.p.update(dt)
+  }
 }
 function updateGpa(dt) {
   const g = G.run.g
@@ -524,6 +567,8 @@ function pickTama(stampKind) {
   return TAMA[0]
 }
 function startTama() {
+  // おじいさんが穴に落ちた結末では、おみやげは出さない（2026-11-20 本人）
+  if (G.end.key === 'greedyKorin' || G.end.key === 'kindKorin') { showResult(); return }
   const E = G.end, def = ENDINGS.find(q => q.key === E.key), o = G.run.o, k = E.key
   // 置き場所: 穴に落ちた結末はその穴から、じいさんが落ちた結末はじいさんの所、家の結末はおむすびの手前
   let px, pz
@@ -730,7 +775,7 @@ function frame(dt) {
   } else if (G.state === 'result') {
     // 背景は止めたまま
   }
-  if (G.state === 'play' || G.state === 'ending') { updateHoles(dt); updateBub(dt); updateEmaki() }
+  if (G.state === 'play' || G.state === 'ending') { updateHoles(dt); updateWalkers(dt); updateBub(dt); updateEmaki() }
   P.update(dt)
   leaves.update(dt, cx(oni.position.z), oni.position.z, sectionAt(oni.position.z) !== 'take' && sectionAt(oni.position.z) !== 'tanbo')
   baba.update(dt)

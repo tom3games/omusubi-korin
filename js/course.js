@@ -80,7 +80,7 @@ export function surfaceAt(x, z) {
 export function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
 
 // ---------------- 穴の大きさ（半径 m）
-export const HOLE = { small: 0.22, mid: 0.34, big: 0.52 }
+export const HOLE = { small: 0.22, mid: 0.34, big: 0.6 } // big は 0.52 → 0.6（2026-11-20 太れば全部の穴を越えられて楽すぎた）
 export const START_R = 0.30
 
 // ---------------- 当たる物（毎回同じ）: 岩・かかし・道しるべ・お地蔵さん
