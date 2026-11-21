@@ -5,13 +5,13 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { ShaderPass } from '../vendor/jsm/postprocessing/ShaderPass.js'
-import { TXT, ENDINGS, TAMA } from './data.js?v=6'
-import { makeTsuzura, makeItem } from './tama.js?v=6'
-import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=6'
-import { newRun, step, DT, holeOpen } from './phys.js?v=6'
-import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=6'
-import { loadChars, Person } from './chars.js?v=6'
-import { makeBot } from './bot.js?v=6'
+import { TXT, ENDINGS, TAMA } from './data.js?v=7'
+import { makeTsuzura, makeItem } from './tama.js?v=7'
+import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=7'
+import { newRun, step, DT, holeOpen, batHome, batSpot } from './phys.js?v=7'
+import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=7'
+import { loadChars, Person } from './chars.js?v=7'
+import { makeBot } from './bot.js?v=7'
 
 window.__jsUp = true
 const V = '?v=4'
@@ -184,6 +184,7 @@ function setupRun(seed, mode) {
   for (const V of WV) scene.remove(V.g)
   WV.length = 0
   clearPebs()
+  clearBats(); for (const b of G.run.bats) addBat(b)
   HV.length = 0
   for (const h of G.run.holes) HV.push(makeHole(scene, h))
   // おじいさん
@@ -309,7 +310,7 @@ function camFollow(dt) {
 function camTo(pos, look, dt, k = 2.5) { G.camPos.lerp(pos, 1 - Math.exp(-dt * k)); G.camPos.y = Math.max(G.camPos.y, height(G.camPos.x, G.camPos.z) + 0.8); G.camLook.lerp(look, 1 - Math.exp(-dt * k)); camera.position.copy(G.camPos); camera.lookAt(G.camLook) }
 
 // ------------------------------------------------------------ 吹き出し（1つずつ）
-function say(text, who, o = {}) { if (G.bubQ.length > 1) return; G.bubQ.push({ text, who, mouse: !!o.mouse, pos: o.pos ? o.pos.clone() : null, ttl: 0.9 + text.length * 0.09 + (o.extra || 0) }) }
+function say(text, who, o = {}) { if (o.now) { G.bubQ.length = 0; G.bub = null } if (G.bubQ.length > 1) return; G.bubQ.push({ text, who, mouse: !!o.mouse, pos: o.pos ? o.pos.clone() : null, ttl: 0.9 + text.length * 0.09 + (o.extra || 0) }) }
 function hideBub() { $('bub').classList.remove('on'); G.bub = null; G.bubQ.length = 0 }
 function updateBub(dt) {
   if (!G.bub && G.bubQ.length) { G.bub = G.bubQ.shift(); const el = $('bub'); el.textContent = G.bub.text; el.className = G.bub.mouse ? 'mouse on' : 'on' }
@@ -383,6 +384,13 @@ function onEvent(e) {
     case 'peb': { addPeb(r.pebs[e.i]); gpa.play('attack-melee-right', true, 0.8); Snd.play('grunt', { vol: 0.5 }); if (!G.pebSaid || r.t - G.pebSaid > 9) { G.pebSaid = r.t; say(G.pebN ? B.gPeb2 : B.gPeb, 'gpa') } G.pebN = (G.pebN || 0) + 1; break }
     case 'pebHit': Snd.play('rock', { vol: 0.9 }); G.shake = 0.15; riceBurst(oni.position, 12); pop(PP.peb, true); oni.setFace('dizzy'); G.faceT = 0.7; checkSize(); if (Math.random() < 0.5) say(B.gPebHit, 'gpa'); break
     case 'pebMiss': { const q = r.pebs[e.i]; Snd.play('rock', { vol: 0.45, rate: 1.2 }); dust(_v.set(q.x1, height(q.x1, q.z1) + 0.1, q.z1), 6); if (Math.hypot(o.x - q.x1, o.z - q.z1) < o.r + 0.9) pop(PP.pebDodge); break }
+    // バットの人・道の外の柵（2026-11-21）
+    case 'batPop': { const V = BV[e.i], b = r.bats[e.i]; if (V) { V.shake = 0.5; V.p.play('jump', true, 1.3); leafBurst(V.hedge.position) } Snd.play('sq', { vol: 0.35, rate: 0.7 }); { const x = cx(b.z) + b.side * batSpot(b); say(B.batPop, null, { now: 1, pos: _w.set(x, height(x, b.z) + 1.4, b.z) }) } oni.setFace('scared'); G.faceT = 0.6; break }
+    case 'batSwing': { const V = BV[e.i]; if (V) V.p.play('attack-melee-right', true, 1.35); break }
+    case 'batHit': Snd.play('kick', { vol: 1 }); Snd.play('wood', { vol: 0.9, rate: 1.5 }); G.shake = 0.3; riceBurst(oni.position, 14); pop(PP.batHit, true); oni.setFace('dizzy'); G.faceT = 1.0; checkSize(); break
+    case 'batMiss': pop(PP.batMiss); break
+    case 'batGpa': gpa.play('fall', true); Snd.play('kick', { vol: 0.8 }); Snd.play('grunt', { vol: 0.9, delay: 0.1 }); say(B.batGpa, 'gpa'); break
+    case 'wall': Snd.play('sq', { vol: 0.25, rate: 0.6 }); dust(oni.position, 5, [0.42, 0.55, 0.3]); if (e.sp > 2) pop(PP.wall); break
     case 'end': startEnding(e.key); break
   }
 }
@@ -447,6 +455,36 @@ function updatePebs(dt) {
   }
 }
 function clearPebs() { for (const V of PV) { scene.remove(V.m); scene.remove(V.sh) } PV.length = 0; G.pebN = 0; G.pebSaid = 0 }
+
+// バットの人の見た目（動きは phys.js の bats）。道ばたの生垣の陰に隠れていて、近づくと飛び出す
+const BV = []
+const hedgeGeo = new THREE.IcosahedronGeometry(1, 1), hedgeMat = new THREE.MeshStandardMaterial({ color: 0x4d7a36, roughness: 0.95, flatShading: true })
+function addBat(b) {
+  const hedge = new THREE.Group()
+  for (const [x, y, z, s] of [[0, 0.32, -0.45, 0.42], [0, 0.4, 0, 0.5], [0, 0.32, 0.45, 0.42], [0.1, 0.62, -0.18, 0.32], [0.1, 0.64, 0.22, 0.3]]) { const m = new THREE.Mesh(hedgeGeo, hedgeMat); m.position.set(x, y, z); m.scale.set(s * 0.8, s, s); m.castShadow = m.receiveShadow = true; hedge.add(m) }
+  const hu = widths(b.z).road + 0.55, hx = cx(b.z) + b.side * hu
+  hedge.position.set(hx, height(hx, b.z) - 0.05, b.z); scene.add(hedge)
+  const g = new THREE.Group(); scene.add(g); g.visible = false
+  const p = new Person(g, { look: 'batter', anim: 'holding-right', scale: 1.5 })
+  BV.push({ b, g, p, hedge, shake: 0 })
+}
+function updateBats(dt) {
+  const r = G.run
+  for (const V of BV) {
+    const b = r.bats[V.b.i] || V.b; V.b = b
+    if (V.shake > 0) { V.shake = Math.max(0, V.shake - dt); V.hedge.rotation.z = Math.sin(V.shake * 40) * V.shake * 0.25 }
+    V.g.visible = !!b.out
+    if (!V.g.visible) continue
+    const x = cx(b.z) + b.side * b.u
+    V.g.position.set(x, height(x, b.z), b.z)
+    V.g.rotation.y = b.side > 0 ? -Math.PI / 2 : Math.PI / 2 // 道の真ん中を向く
+    if (b.st === 'ready' && V.p.anim === 'jump' && !(V.p.act && V.p.act.isRunning())) V.p.play('holding-right')
+    if (b.st === 'done' && V.p.anim !== 'emote-yes' && !(V.p.act && V.p.act.isRunning())) V.p.play(b.hitO ? 'emote-yes' : 'emote-no')
+    V.p.update(dt)
+  }
+}
+function clearBats() { for (const V of BV) { scene.remove(V.g); scene.remove(V.hedge) } BV.length = 0 }
+function leafBurst(p) { for (let i = 0; i < 12; i++) { const a = Math.random() * 6.28, v = 0.6 + Math.random() * 1.4; P.emit(p.x, p.y + 0.5, p.z, Math.cos(a) * v, 1 + Math.random() * 1.5, Math.sin(a) * v, 0.7 + Math.random() * 0.4, 0.06 + Math.random() * 0.05, [0.32, 0.5, 0.22], 1.5, 4, 0) } }
 
 // 通行人の見た目（動きは phys.js の walkers）
 const WV = []
@@ -808,7 +846,7 @@ function frame(dt) {
   } else if (G.state === 'result') {
     // 背景は止めたまま
   }
-  if (G.state === 'play' || G.state === 'ending') { updateHoles(dt); updateWalkers(dt); updatePebs(dt); updateBub(dt); updateEmaki() }
+  if (G.state === 'play' || G.state === 'ending') { updateHoles(dt); updateWalkers(dt); updateBats(dt); updatePebs(dt); updateBub(dt); updateEmaki() }
   P.update(dt)
   leaves.update(dt, cx(oni.position.z), oni.position.z, sectionAt(oni.position.z) !== 'take' && sectionAt(oni.position.z) !== 'tanbo')
   baba.update(dt)

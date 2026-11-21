@@ -1,5 +1,5 @@
 // おむすびとおじいさんの動き（three を使わない。固定 60Hz。同じ入力なら同じ結果）
-import { OBJ, HOLE, START_R, S_END, SURF, BUMPS, D, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=6'
+import { OBJ, HOLE, START_R, S_END, SURF, BUMPS, D, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=7'
 
 export const DT = 1 / 60
 export const TUNE = {
@@ -11,6 +11,10 @@ export const TUNE = {
   hopV: 5.2, hopChip: [0.002, 0.0006], grav: 14,
   // 石ころ: 後半（pebZ から）いじわるじいさんが後ろから投げる。飛ぶ時間 pebT 秒、先回りの位置にずれ pebErr。当たると pebChip 削れる。2026-11-21 本人「後半はおじいさんが後ろから石ころを飛ばしてくる」
   pebZ: 420, pebEvery: [2.3, 3.6], pebT: 0.95, pebErr: 0.45, pebHit: 0.2, pebChip: 0.007, pebGap: [2.5, 15],
+  // バット: ゴール手前（770m〜）で道ばたの生垣から飛び出して振る。当たると後ろへはじき返される。2026-11-21 本人「ゴール手前は退屈。野球バット持った人が急に出てくる。ぶつかったらちょっとノックバック」
+  bat: { reach: 2.75, zone: 0.65, windup: 0.42, active: 0.14, back: 3.0, side: 1.5, grace: 1.2, hopV: 2.6, chip: 0.004 },
+  // 道の外: 木の並ぶ手前（flat + wall）ではね返す。2026-11-21 本人「めっちゃコースアウトできる」（道の中心から最大29m出られた）
+  wall: 1.0,
   // おじいさん
   kind: { vmax: 15, acc: 6, catchD: 0.95, follow: 0.97, close: 0.45, far: 9 },
   greedy: { vmax: 16, acc: 7, follow: 1.0, close: 1.1, far: 7, kickD: 2.1, windup: 0.62, cool: 3.2, hitLat: 0.85 },
@@ -25,7 +29,7 @@ export function newRun(seed = 1, opt = {}) {
   const mode = opt.mode || 'greedy'
   const holes = makeHoles(seed)
   return {
-    seed, mode, t: 0, steps: 0, holes, digs: digPlan(seed), digI: 0, wplan: walkPlan(seed), wI: 0, walkers: [], pebs: [], pebN: 0, pebT: 0, bI: 0,
+    seed, mode, t: 0, steps: 0, holes, bats: batPlan(seed), wallT: -9, digs: digPlan(seed), digI: 0, wplan: walkPlan(seed), wI: 0, walkers: [], pebs: [], pebN: 0, pebT: 0, bI: 0,
     o: mode === 'kind' ? { x: cx(-3.6) + 1.5, z: -3.6, vx: -0.3, vz: 2.2, r: START_R, y: 0, ang: 0, sp: 0, bump: 0, hy: 0, vy: 0 } : { x: cx(-2.2), z: -2.2, vx: 0, vz: 5.0, r: START_R, y: 0, ang: 0, sp: 0, bump: 0, hy: 0, vy: 0 },
     g: mode === 'kind' ? { x: cx(-5.2) + 2.7, z: -5.2, v: 0, st: 'wait', tm: 1.1, aimX: 0, cool: 1.5, hist: [] } : { x: cx(-3.6), z: -3.6, v: 0, st: 'wait', tm: 0.5, aimX: 0, cool: 1.5, hist: [] },
     alive: new Uint8Array(OBJ.length).fill(1), cd: new Float32Array(OBJ.length), hcd: new Float32Array(holes.length),
@@ -34,7 +38,7 @@ export function newRun(seed = 1, opt = {}) {
   }
 }
 export function cloneRun(run) {
-  return { ...run, o: { ...run.o }, g: { ...run.g, hist: run.g.hist.slice() }, holes: run.holes.map(h => ({ ...h })), digs: run.digs.slice(), wplan: run.wplan.slice(), walkers: run.walkers.map(w => ({ ...w })), pebs: run.pebs.map(q => ({ ...q })), alive: run.alive.slice(), cd: run.cd.slice(), hcd: run.hcd.slice(), ev: [], st: { ...run.st } }
+  return { ...run, o: { ...run.o }, g: { ...run.g, hist: run.g.hist.slice() }, holes: run.holes.map(h => ({ ...h })), digs: run.digs.slice(), wplan: run.wplan.slice(), walkers: run.walkers.map(w => ({ ...w })), bats: run.bats.map(b => ({ ...b })), pebs: run.pebs.map(q => ({ ...q })), alive: run.alive.slice(), cd: run.cd.slice(), hcd: run.hcd.slice(), ev: [], st: { ...run.st } }
 }
 function emit(run, k, o = {}) { run.ev.push({ k, ...o }) }
 function finish(run, key, extra = {}) { if (run.done) return; run.done = true; run.end = { key, r: run.o.r, z: run.o.z, x: run.o.x, t: run.t, ...extra }; emit(run, 'end', { key }) }
@@ -88,6 +92,7 @@ export function step(run, inp) {
   if (S.grow && o.r < T.maxR) { const g = T.grow * ds; o.r = Math.min(T.maxR, o.r + g); run.st.grow += g; run.st.paddyT += DT }
   else if (!S.grow && o.r > T.minR) { const w = Math.min(o.r - T.minR, T.wear * ds); o.r -= w; run.st.wear = (run.st.wear || 0) + w }
   collide(run, sp)
+  wall(run)
   bumps(run, pz, sp)
   if (o.hy <= 0.04) holes(run, px, pz) // 跳んでいる間は穴の上を越える
   if (run.done) return
@@ -97,6 +102,7 @@ export function step(run, inp) {
   o.y = height(o.x, o.z)
   dig(run)
   walkers(run)
+  bats(run)
   pebbles(run)
   if (run.done) return
   grandpa(run, inp)
@@ -304,7 +310,7 @@ function grandpa(run, inp) {
     if (gap < M.catchD && o.z < S_END - 6) { emit(run, 'gCatch'); return finish(run, 'picked') }
     return
   }
-  if (gap < 0.95 && o.sp < 2.5 && o.z < S_END - 6) { emit(run, 'gCatch'); return finish(run, 'thrown') }
+  if (gap < 0.95 && o.sp < 2.5 && o.z < S_END - 6 && !(run.t - (run.batT ?? -9) < TUNE.bat.grace)) { emit(run, 'gCatch'); return finish(run, 'thrown') }
   // いじわるじいさん: 蹴る
   g.cool -= DT
   if (g.st === 'run' && g.cool <= 0 && gap < M.kickD && o.sp >= 2.5 && o.z < S_END - 10) { g.st = 'windup'; g.tm = M.windup; g.aimX = o.x; emit(run, 'windup') }
@@ -322,6 +328,65 @@ function grandpa(run, inp) {
         run.lastKick = run.t; run.st.kicks++; g.st = 'recover'; g.tm = 0.7; g.v = 0
         emit(run, 'kick', { side })
       } else { run.st.dodges++; g.st = 'trip'; g.tm = 1.3; g.v = 0; emit(run, 'whiff') }
+    }
+  }
+}
+
+// 道の外: 木の並ぶ手前ではね返す（見た目の木は flat + 0.9 から）
+function wall(run) {
+  const o = run.o, w = widths(o.z), u = o.x - cx(o.z), lim = w.flat + TUNE.wall
+  if (Math.abs(u) <= lim) return
+  const n = Math.sign(u)
+  o.x = cx(o.z) + n * lim
+  if (o.vx * n > 0) {
+    const vn = Math.abs(o.vx); o.vx = -n * vn * 0.35; o.vz *= 0.85
+    if (run.t - run.wallT > 0.5 && vn > 0.6) { run.wallT = run.t; o.bump = Math.max(o.bump, 0.7); run.st.walls = (run.st.walls || 0) + 1; emit(run, 'wall', { sp: vn, side: n }) }
+  }
+}
+
+// バット: ゴール手前で、道ばたの生垣の陰から飛び出して振る
+export function batPlan(seed) {
+  const R = rng(seed * 61 + 29), a = []
+  let side = R() < 0.5 ? -1 : 1
+  for (const z0 of [773, 790, 805]) { a.push({ i: a.length, z: +(z0 + (R() - 0.5) * 4).toFixed(1), side, st: 'hide', tm: 0, u: 0 }); if (R() < 0.75) side = -side }
+  return a
+}
+export function batHome(b) { return widths(b.z).road + 0.95 } // 生垣の陰（道の端から）
+export function batSpot(b) { return widths(b.z).road - 0.1 } // 飛び出して構える所
+function bats(run) {
+  const o = run.o, g = run.g, B = TUNE.bat
+  for (const b of run.bats) {
+    if (b.st === 'done') continue
+    if (b.st === 'hide') {
+      if (o.z > b.z + 1.5) { b.st = 'done'; continue }
+      if (o.z >= b.z - clamp(o.sp * 1.5, 6, 11)) { b.st = 'pop'; b.out = 1; b.tm = 0.32; emit(run, 'batPop', { i: b.i }) }
+      b.u = batHome(b); continue
+    }
+    const home = batHome(b), spot = batSpot(b)
+    if (b.st === 'pop') { b.tm -= DT; b.u = spot + (home - spot) * Math.max(0, b.tm / 0.32); if (b.tm <= 0) b.st = 'ready'; continue }
+    if (b.st === 'ready') {
+      // おむすびが構えの間に前へ来るなら振りはじめる。通り過ぎたら空振り
+      const dz = b.z - o.z
+      if (dz <= o.sp * B.windup + 0.25 || dz < -1) { b.st = 'swing'; b.tm = B.windup; emit(run, 'batSwing', { i: b.i }) }
+      continue
+    }
+    if (b.st === 'swing') {
+      b.tm -= DT
+      if (b.tm > 0) continue
+      const bx = cx(b.z) + b.side * b.u
+      if (!b.hitO && Math.abs(o.z - b.z) < B.zone + o.r * 0.5 && Math.abs(o.x - bx) < B.reach + o.r * 0.6 && o.hy < 0.3) {
+        b.hitO = 1
+        // 後ろへはじき返す（道の向きの逆・生垣と反対の横へ）。少し浮いて着地で欠ける
+        const dcx = (cx(o.z + 1) - cx(o.z - 1)) / 2, fl = Math.hypot(dcx, 1), fx = dcx / fl, fz = 1 / fl
+        o.vx = -fx * B.back - b.side * B.side; o.vz = -fz * B.back
+        o.vy = B.hopV; o.hy = 0.001
+        const dr = -B.chip; o.r = Math.max(TUNE.minR, o.r + dr); o.bump = 1
+        run.batT = run.t; run.st.batHits = (run.st.batHits || 0) + 1
+        emit(run, 'batHit', { i: b.i, dr })
+      }
+      // 追ってきたおじいさんにも当たる
+      if (!b.hitG && g.st === 'run' && Math.abs(g.z - b.z) < B.zone + 0.3 && Math.abs(g.x - bx) < B.reach + 0.3) { b.hitG = 1; g.st = 'trip'; g.tm = 1.1; g.v = 0; run.st.gTrips++; emit(run, 'batGpa', { i: b.i }) }
+      if (b.tm < -B.active) { if (!b.hitO) emit(run, 'batMiss', { i: b.i }); b.st = 'done' }
     }
   }
 }

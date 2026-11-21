@@ -37,6 +37,8 @@ export const LOOKS = {
   // 通行人（2026-11-20）: 水汲み帰りの人・子ども
   mizu: { kind: 'character-female-c', recolor: [[256, 256, 64, 128, '#4f6f7a'], [320, 256, 64, 128, '#5a4a3a']] },
   kodomo: { kind: 'character-male-b', recolor: [[256, 256, 64, 128, '#c8702a'], [320, 256, 64, 128, '#3a4a6a']] },
+  // バットの人（2026-11-21）: 生垣の陰から飛び出す村の若い衆
+  batter: { kind: 'character-male-b', recolor: [[256, 256, 64, 128, '#e8e2d2'], [320, 256, 64, 128, '#2e3e5e']], hachimaki: 1, bat: 1 },
 }
 export class Person {
   constructor(parent, o = {}) {
@@ -70,6 +72,13 @@ export class Person {
       if (lk.beard) { const bm = new THREE.MeshStandardMaterial({ color: lk.beard, roughness: 1 }); const b = new THREE.Mesh(new THREE.ConeGeometry(hx * 0.55, hh * 0.5, 10), bm); b.rotation.x = Math.PI; b.position.set(0, y0 + hh * 0.05, zf - hx * 0.1); b.scale.z = 0.6; head.add(b) }
       if (lk.brows) { for (const sd of [-1, 1]) { const br = new THREE.Mesh(new THREE.BoxGeometry(hx * 0.42, hh * 0.07, hx * 0.08), new THREE.MeshStandardMaterial({ color: 0x1a1410 })); br.position.set(sd * hx * 0.36, y0 + hh * 0.62, zf + 0.005); br.rotation.z = sd * 0.45; head.add(br) } }
       if (lk.hachimaki) { const band = new THREE.Mesh(new THREE.BoxGeometry(hx * 2.08, hh * 0.13, Math.abs(hi.z - lo.z) * 1.04), new THREE.MeshStandardMaterial({ color: 0xf0ece0, roughness: 1 })); band.position.set(0, y0 + hh * 0.8, (lo.z + hi.z) / 2); head.add(band); const knot = new THREE.Mesh(new THREE.SphereGeometry(hh * 0.09, 8, 6), band.material); knot.position.set(hx * 0.5, y0 + hh * 0.8, Math.min(lo.z, hi.z) - 0.01); head.add(knot) }
+    }
+    // バット（右腕の骨に持たせる。握りが手、先が前へ）
+    const arm = mdl.getObjectByName('arm-right')
+    if (lk.bat && arm) {
+      const bg = new THREE.CylinderGeometry(0.024, 0.011, 0.36, 10); bg.translate(0, 0.17, 0)
+      const bat = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0xc89a5c, roughness: 0.6 })); bat.castShadow = true
+      bat.position.set(0, -0.105, 0.01); bat.rotation.x = Math.PI / 2; arm.add(bat); this.bat = bat
     }
     this.root.remove(this.fb); this.root.add(mdl); this.model = mdl
     this.mixer = new THREE.AnimationMixer(mdl)

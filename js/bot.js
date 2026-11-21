@@ -1,7 +1,7 @@
 // 自動で遊ぶ（検査と sim と宣伝動画用）。three を使わない
-import { OBJ, BUMPS, cx, widths, clamp, rng } from './course.js?v=6'
+import { OBJ, BUMPS, cx, widths, clamp, rng } from './course.js?v=7'
 const ROCKS = OBJ.filter(b => !b.decor)
-import { holeOpen } from './phys.js?v=6'
+import { holeOpen } from './phys.js?v=7'
 
 // kind: 'none'（何もしない）/ 'center'（道の真ん中だけ）/ 'human'（人の速さ: 反応が遅れ、狙いがずれる）/ 'good'（上手い）/ 'paddy'（田んぼで太る）
 export function makeBot(kind = 'good', seed = 1) {
@@ -38,6 +38,12 @@ export function makeBot(kind = 'good', seed = 1) {
             const dz = wk.z - o.z; if (dz < -0.3 || dz > 16) continue
             const tt = Math.max(0, dz) / Math.max(3, o.sp), pu = wk.x - cx(wk.z) + (wk.st === 'walk' ? wk.dir * wk.v * tt : 0)
             if (Math.abs(u - pu) < wk.hw + o.r + 0.45) s -= 14 / (1 + Math.max(0, dz) * 0.12)
+          }
+          // バット: 飛び出した人の届く所を避ける（2026-11-21）
+          for (const b of run.bats || []) {
+            if (b.st === 'done' || b.st === 'hide') continue
+            const dz = b.z - o.z; if (dz < -0.5 || dz > 12) continue
+            if (Math.abs(u - b.side * b.u) < 2.75 + o.r + 0.3) s -= 12 / (1 + Math.max(0, dz) * 0.1)
           }
           // 石ころ: 落ちる所から離れる（上手い・人の速さ。2026-11-21）
           if (kind !== 'center') for (const q of run.pebs || []) { if (q.done) continue; const d = Math.abs(u - (q.x1 - cx(q.z1))); if (d < o.r + 0.5) s -= 8 }

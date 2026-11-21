@@ -1,7 +1,7 @@
 // 3D の見た目（地形・竹林・田んぼ・紅葉・岩・穴・ねずみ・家・おむすび）
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from '../vendor/jsm/utils/BufferGeometryUtils.js'
-import { OBJ, BUMPS, S_END, L, YARD, HOLE, D, height, surfaceAt, widths, cx, sectionAt, rng, clamp } from './course.js?v=6'
+import { OBJ, BUMPS, S_END, L, YARD, HOLE, D, height, surfaceAt, widths, cx, sectionAt, rng, clamp } from './course.js?v=7'
 
 const TEX = {}
 const FIRST = ['dirt_diff', 'aerial_grass_rock_diff', 'grass_path_2_diff', 'brown_mud_02_diff']

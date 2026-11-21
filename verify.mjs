@@ -85,11 +85,11 @@ await t('本（いじわるじいさんの1冊）を指で押すと語りが出�
   expect(r.ok && /じいさん/.test(intro), { r, intro }); return { intro: intro.slice(0, 12) }
 })
 await t('物理は固定 60Hz（60 回進めると 1 秒）', async () => {
-  const r = await p.evaluate(async () => { const P = await import('./js/phys.js?v=6'); const run = P.newRun(3); for (let i = 0; i < 60; i++) P.step(run, {}); return +run.t.toFixed(4) })
+  const r = await p.evaluate(async () => { const P = await import('./js/phys.js?v=7'); const run = P.newRun(3); for (let i = 0; i < 60; i++) P.step(run, {}); return +run.t.toFixed(4) })
   expect(Math.abs(r - 1) < 1e-6, r); return r
 })
 await t('本物の指で右斜め前へはじくと、前へ転がって画面の右へ曲がる。はじかないと15秒以内に止まる', async () => {
-  await p.evaluate(async () => { const C = await import('./js/course.js?v=6'); const a = window.omuApi; a.dbg.pause(true); a.setO({ x: C.cx(80), z: 80, vx: 0, vz: 0 }); a.run.g.st = 'wait'; a.run.g.tm = 99; a.run.holes.length = 0; a.stepN(2) })
+  await p.evaluate(async () => { const C = await import('./js/course.js?v=7'); const a = window.omuApi; a.dbg.pause(true); a.setO({ x: C.cx(80), z: 80, vx: 0, vz: 0 }); a.run.g.st = 'wait'; a.run.g.tm = 99; a.run.holes.length = 0; a.stepN(2) })
   const x0 = await p.evaluate(() => window.omuApi.run.o.x)
   await p.mouse.move(180, 640); await p.mouse.down(); await p.mouse.move(230, 560, { steps: 4 }); await p.mouse.up()
   const r = await p.evaluate(() => { const a = window.omuApi; a.stepN(1); const sp1 = a.run.o.sp; a.stepN(40); return { sp1, x1: a.run.o.x } })
@@ -111,7 +111,7 @@ await t('遊び中: 一画面・はみ出しなし・絵巻と音のボタンが
 })
 await t('同じ種・同じ入力なら同じ結果（決定的）', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=6'), B = await import('./js/bot.js?v=6')
+    const P = await import('./js/phys.js?v=7'), B = await import('./js/bot.js?v=7')
     const go = m => { const run = P.newRun(42, { mode: m }), bot = B.makeBot('human', 42); while (!run.done && run.t < 200) P.step(run, bot(run)); return run.end.key + ':' + run.o.r.toFixed(6) + ':' + run.steps }
     const go2 = s2 => { const run = P.newRun(s2), bot = B.makeBot('human', s2); while (!run.done && run.t < 300) P.step(run, bot(run)); return run.end.key + ':' + run.o.r.toFixed(6) + ':' + run.steps }
     return [go('greedy'), go('greedy'), go2(7), go2(7)]
@@ -120,7 +120,7 @@ await t('同じ種・同じ入力なら同じ結果（決定的）', async () =>
 })
 await t('はじかないと止まって、拾われて穴に落とされる（12通り）', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=6'), out = {}
+    const P = await import('./js/phys.js?v=7'), out = {}
     for (const m of ['greedy']) for (let s = 1; s <= 12; s++) { const run = P.newRun(s, { mode: m }); while (!run.done && run.t < 200) P.step(run, {}); const k = run.end ? run.end.key : 'timeout'; out[k] = (out[k] || 0) + 1 }
     return out
   })
@@ -128,7 +128,7 @@ await t('はじかないと止まって、拾われて穴に落とされる（12
 })
 await t('穴: 自分より大きい穴に落ち、小さい穴は乗り越える。速くても抜けない', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=6'), C = await import('./js/course.js?v=6')
+    const P = await import('./js/phys.js?v=7'), C = await import('./js/course.js?v=7')
     const at = (r0, hr, vz) => { const run = P.newRun(5, { mode: 'kind' }); run.g.st = 'wait'; run.g.tm = 99; const z = 150; run.holes = [{ x: C.cx(z), z, hr, size: 'x', t0: 0, i: 0 }]; run.hcd = new Float32Array(1); Object.assign(run.o, { x: C.cx(z - 0.3), z: z - 0.3, vx: 0, vz, r: r0 }); for (let i = 0; i < 30 && !run.done; i++) P.step(run, {}); return run.done ? run.end.key : 'pass' }
     return { smallOni: at(0.25, 0.34, 6), bigOni: at(0.45, 0.34, 6), fast: at(0.25, 0.34, 12.4) }
   })
@@ -136,7 +136,7 @@ await t('穴: 自分より大きい穴に落ち、小さい穴は乗り越える
 })
 await t('いじわるじいさん: 振り上げた時に横へ逃げれば空振り、逃げなければ蹴られる', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=6'), C = await import('./js/course.js?v=6')
+    const P = await import('./js/phys.js?v=7'), C = await import('./js/course.js?v=7')
     const go = steer => { const run = P.newRun(9, { mode: 'greedy' }); run.holes = []; run.hcd = new Float32Array(0); const z = 260; Object.assign(run.o, { x: C.cx(z), z, vx: 0, vz: 6, sp: 6 }); Object.assign(run.g, { x: C.cx(z - 1.5), z: z - 1.5, st: 'run', tm: 0, cool: 0, v: 6, hist: [] }); const ev = []; for (let i = 0; i < 90; i++) { P.step(run, ev.includes('windup') && !run.__d ? (run.__d = 1, { lat: steer }) : (i % 20 === 0 && !ev.includes('windup') ? { push: 0.6 } : {})); for (const e of run.ev) ev.push(e.k); run.ev.length = 0 } return ev.filter(k => /windup|kick|whiff/.test(k)).slice(0, 2).join(',') }
     return { stay: go(0), dodge: go(1) }
   })
@@ -144,7 +144,7 @@ await t('いじわるじいさん: 振り上げた時に横へ逃げれば空振
 })
 await t('凸凹: 速いと跳ねて着地で少し欠ける。遅いと跳ねない（2026-11-21）', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=6'), C = await import('./js/course.js?v=6')
+    const P = await import('./js/phys.js?v=7'), C = await import('./js/course.js?v=7')
     const b = C.BUMPS.find(q => q.z > 430 && q.hw > 2)
     const go = vz => { const run = P.newRun(4); run.holes = []; run.hcd = new Float32Array(0); run.g.st = 'wait'; run.g.tm = 99; Object.assign(run.o, { x: C.cx(b.z - 2) + b.u, z: b.z - 2, vx: 0, vz, r: 0.3 }); const ev = []; for (let i = 0; i < 90 && !run.done; i++) { P.step(run, { push: i % 15 === 0 && vz > 6 ? 0.5 : 0 }); for (const e of run.ev) ev.push(e.k); run.ev.length = 0 } return { hop: ev.includes('hop'), land: ev.includes('land'), r: +run.o.r.toFixed(4) } }
     return { fast: go(9), slow: go(3.5) }
@@ -153,7 +153,7 @@ await t('凸凹: 速いと跳ねて着地で少し欠ける。遅いと跳ねな
 })
 await t('石ころ: 後半、いじわるじいさんが投げる。まっすぐだと当たり、横へ逃げるとよけられる（2026-11-21）', async () => {
   const r = await p.evaluate(async () => {
-    const P = await import('./js/phys.js?v=6'), C = await import('./js/course.js?v=6')
+    const P = await import('./js/phys.js?v=7'), C = await import('./js/course.js?v=7')
     const go = dodge => { const run = P.newRun(6); run.holes = []; run.hcd = new Float32Array(0); const z = 470; Object.assign(run.o, { x: C.cx(z), z, vx: 0, vz: 4.5, r: 0.3 }); Object.assign(run.g, { x: C.cx(z - 6), z: z - 6, st: 'run', tm: 0, cool: 99, v: 4, hist: [] }); run.pebT = 0; const ev = []; let thrown = 0
       for (let i = 0; i < 80 && !run.done; i++) { const inp = thrown && dodge && !run.__d ? (run.__d = 1, { lat: 1.2, push: 0.3 }) : {}; P.step(run, inp); for (const e of run.ev) { ev.push(e.k); if (e.k === 'peb') thrown = 1 } run.ev.length = 0; if (ev.includes('pebHit') || ev.includes('pebMiss')) break }
       return ev.filter(k => /^peb/.test(k)).join(',') }
@@ -161,10 +161,31 @@ await t('石ころ: 後半、いじわるじいさんが投げる。まっすぐ
   })
   expect(/peb,pebHit/.test(r.stay) && /peb,pebMiss/.test(r.dodge), r); return r
 })
+await t('道の外: 横へはじき続けても木の手前ではね返る（2026-11-21 本人「めっちゃコースアウトできる」。前は中心から29m）', async () => {
+  const r = await p.evaluate(async () => {
+    const P = await import('./js/phys.js?v=7'), C = await import('./js/course.js?v=7'), out = []
+    for (const z0 of [30, 120, 250, 370, 500, 700]) for (const sd of [-1, 1]) { const run = P.newRun(3); run.holes = []; run.hcd = new Float32Array(0); run.wplan = []; run.bats = []; run.g.st = 'gone'; Object.assign(run.o, { x: C.cx(z0), z: z0, vx: 0, vz: 7, r: 0.3 })
+      let over = 0; for (let i = 0; i < 600 && !run.done; i++) { P.step(run, i % 20 === 0 ? { lat: 1.3 * sd, push: 0.6 } : {}); over = Math.max(over, Math.abs(run.o.x - C.cx(run.o.z)) - C.widths(run.o.z).flat - P.TUNE.wall) }
+      out.push(+over.toFixed(3)) }
+    return { worst: Math.max(...out) }
+  })
+  expect(r.worst <= 0.001, r); return r
+})
+await t('バット: ゴール手前で飛び出して振る。真ん中だと後ろへはじかれ、反対の端なら空振り（2026-11-21）', async () => {
+  const r = await p.evaluate(async () => {
+    const P = await import('./js/phys.js?v=7'), C = await import('./js/course.js?v=7')
+    const go = (seed, far) => { const run = P.newRun(seed); run.holes = []; run.hcd = new Float32Array(0); run.wplan = []; run.g.st = 'wait'; run.g.tm = 999; const b = run.bats[0]
+      Object.assign(run.o, { x: C.cx(b.z - 12) + (far ? -b.side * 2.4 : 0), z: b.z - 12, vx: 0, vz: 6, r: 0.3 }); const ev = []; let minVz = 9
+      for (let i = 0; i < 200 && !run.done; i++) { P.step(run, i % 25 === 0 ? { push: 0.5 } : {}); for (const e of run.ev) if (/^bat/.test(e.k) && e.i === 0) ev.push(e.k); run.ev.length = 0; if (ev.includes('batHit')) minVz = Math.min(minVz, run.o.vz) }
+      return { ev: ev.join(','), minVz: +minVz.toFixed(1), end: run.end && run.end.key } }
+    return { mid: [1, 2, 3].map(s => go(s, 0)), far: [1, 2, 3].map(s => go(s, 1)), z: P.newRun(1).bats.map(b => b.z) }
+  })
+  expect(r.mid.every(q => q.ev === 'batPop,batSwing,batHit' && q.minVz < -2) && r.far.every(q => q.ev === 'batPop,batSwing,batMiss') && r.z.every(z => z > 765 && z < 810), r); return { mid: r.mid[0], far: r.far[0].ev, z: r.z }
+})
 await t('穴の列には、どこも通り抜けられるすき間がある（16通り・穴と岩を前後1.5mで重ねて数える）', async () => {
   // 2026-11-21: 前は上手い bot の転がり落ち 2/16 以下で見ていたが、64通りでは前の版も 24/64 落ちていて、16通りが偶然通っていただけだった。すき間そのものを数える
   const r = await p.evaluate(async () => {
-    const C = await import('./js/course.js?v=6'), ROCKS = C.OBJ.filter(b => !b.decor), need = 2 * (C.START_R + 0.1)
+    const C = await import('./js/course.js?v=7'), ROCKS = C.OBJ.filter(b => !b.decor), need = 2 * (C.START_R + 0.1)
     let rows = 0, minGap = 9; const blocked = []
     for (let seed = 1; seed <= 16; seed++) { const H = C.makeHoles(seed).filter(h => !h.first)
       for (const h0 of H) { const z = h0.z, w = C.widths(z).road, bl = []
