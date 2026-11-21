@@ -1,15 +1,18 @@
 // コース（three を使わない。ゲームと node の sim の両方で使う）
 // 座標: z = s（山の畑 0 → ふもとの家 S_END へ下る距離 m）、x = 左右（cx(s) が道の中心）、y = 高さ
-export const S_END = 600
-export const L = 640
+// 2026-11-21 本人「コースをもっと長く」→ 岩場のあとに凸凹の山道（D = 220m）を差し込み、ねずみの里から先を D ずらした
+export const D = 220
+export const S_END = 600 + D
+export const L = 640 + D
 // 区間
 export const SECTIONS = [
   { id: 'hata', s0: -20, s1: 60 },    // 山の畑（スタート）
   { id: 'take', s0: 60, s1: 200 },    // 竹林
   { id: 'tanbo', s0: 200, s1: 320 },  // 棚田（道の両わきが田んぼ）
   { id: 'iwa', s0: 320, s1: 420 },    // 岩場
-  { id: 'nezumi', s0: 420, s1: 548 }, // ねずみの里
-  { id: 'ie', s0: 548, s1: 700 },     // ふもとの家
+  { id: 'deko', s0: 420, s1: 420 + D }, // 凸凹の山道（2026-11-21）
+  { id: 'nezumi', s0: 420 + D, s1: 548 + D }, // ねずみの里
+  { id: 'ie', s0: 548 + D, s1: 700 + D },     // ふもとの家
 ]
 export function sectionAt(s) { for (const q of SECTIONS) if (s >= q.s0 && s < q.s1) return q.id; return s < 0 ? 'hata' : 'ie' }
 
@@ -17,20 +20,20 @@ const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v)
 
 export function cx(s) {
-  const k = 1 - sm(540, 580, s)
+  const k = 1 - sm(540 + D, 580 + D, s)
   return (6 * Math.sin(s / 70) + 3 * Math.sin(s / 31 + 1)) * k * sm(-10, 20, s) + 2.5 * (1 - k)
 }
 // 道の半幅（土の道）と、その外の平らな所の半幅（田んぼ・里の草地）
 export function widths(s) {
   const tan = sm(196, 212, s) * (1 - sm(312, 326, s))
-  const nez = sm(416, 430, s) * (1 - sm(540, 552, s))
-  const ie = sm(546, 560, s)
+  const nez = sm(416 + D, 430 + D, s) * (1 - sm(540 + D, 552 + D, s))
+  const ie = sm(546 + D, 560 + D, s)
   const road = 2.6 - 0.8 * tan + 0.6 * nez + 0.4 * ie
   const flat = road + 7.0 * tan + 2.2 * nez + 7 * ie
   return { road, flat, tan, nez, ie }
 }
 // 下りの傾き
-const SLOPES = [[0, 0.10], [55, 0.17], [200, 0.085], [320, 0.19], [420, 0.12], [548, 0.05], [580, 0.0]]
+const SLOPES = [[0, 0.10], [55, 0.17], [200, 0.085], [320, 0.19], [420, 0.15], [420 + D, 0.12], [548 + D, 0.05], [580 + D, 0.0]]
 const YB = new Float32Array(L + 2)
 {
   let y = 0
@@ -56,8 +59,34 @@ export function height(x, z) {
   if (a < w.road) h += 0.04 * (1 - (a / w.road) ** 2)
   else if (a < w.flat) h += -0.22 * w.tan * sm(w.road, w.road + 0.5, a) + 0.02 * w.nez
   else { const e = a - w.flat; h += -0.22 * w.tan + 0.5 * Math.pow(Math.min(e, 6), 1.3) + 0.22 * Math.max(0, e - 6) }
+  // 凸凹（道を横切る盛り上がり。2026-11-21 本人「凸凹な道も増やして」）
+  if (a < w.road + 0.3) h += bumpH(x, z)
   // スタートの後ろは壁
   if (z < -6) h += 0.5 * Math.pow(-6 - z, 1.3)
+  return h
+}
+// ---------------- 凸凹: 道を横切る盛り上がり（毎回同じ）。u・hw で道の一部だけの物もある（よけられる）
+// 速いまま越えると少し跳ねて、着地で少し削れる（phys.js）
+export const BUMP = { h: 0.17, w: 0.55 } // 高さ・半分の長さ（前後）
+export const BUMPS = []
+{
+  const R = rng(29)
+  const add = (s, full) => {
+    const w = widths(s).road
+    if (full) BUMPS.push({ z: s, u: 0, hw: w + 0.3, h: BUMP.h * (0.85 + R() * 0.3) })
+    else { const hw = w * (0.45 + R() * 0.2), u = (R() < 0.5 ? -1 : 1) * (w - hw); BUMPS.push({ z: s, u, hw, h: BUMP.h * (0.85 + R() * 0.3) }) }
+  }
+  for (let s = 92; s < 196; s += 22 + R() * 14) add(s, R() < 0.4)          // 竹林: 竹の根（まばら）
+  for (let s = 426; s < 420 + D - 6; s += 6.5 + R() * 5) add(s, R() < 0.45) // 凸凹の山道: たくさん
+}
+export function bumpH(x, z) {
+  let h = 0
+  for (const b of BUMPS) {
+    const dz = z - b.z; if (dz > 1.6 || dz < -1.6) continue
+    const u = x - cx(b.z) - b.u, e = Math.abs(u) - b.hw
+    const side = e <= 0 ? 1 : Math.max(0, 1 - e / 0.35)
+    h += b.h * side * Math.exp(-(dz * dz) / (BUMP.w * BUMP.w))
+  }
   return h
 }
 // 路面の種類: dirt（土の道）/ grass（草の土手）/ paddy（田んぼ）/ meadow（里の草地）/ yard（庭）
@@ -70,7 +99,7 @@ export const SURF = {
 }
 export function surfaceAt(x, z) {
   const s = z, u = Math.abs(x - cx(s)), w = widths(s)
-  if (s > 556) return u < w.road ? 'dirt' : 'yard'
+  if (s > 556 + D) return u < w.road ? 'dirt' : 'yard'
   if (u < w.road) return 'dirt'
   if (u < w.flat) return w.tan > 0.5 ? 'paddy' : 'meadow'
   return 'grass'
@@ -95,7 +124,7 @@ function put(kind, x, z, r, extra = {}) { const o = { kind, x, z, r, i: OBJ.leng
     put('rock', cx(s) + u, s, 0.32 + R() * 0.3, { yaw: R() * 6 })
   }
   // ほかの区間にもぱらぱら
-  for (const s of [72, 118, 151, 176, 438, 470, 505]) { const w = widths(s); put('rock', cx(s) + (R() < 0.5 ? -1 : 1) * (w.road - 0.6 - R() * 0.6), s, 0.35 + R() * 0.2, { yaw: R() * 6 }) }
+  for (const s of [72, 118, 151, 176, 438 + D, 470 + D, 505 + D, 447, 489, 533, 571, 612]) { const w = widths(s); put('rock', cx(s) + (R() < 0.5 ? -1 : 1) * (w.road - 0.6 - R() * 0.6), s, 0.35 + R() * 0.2, { yaw: R() * 6 }) }
   // 田んぼのかかし（田んぼの中）
   for (const [s, u] of [[226, -4.5], [248, 5.2], [271, -6.0], [293, 4.0]]) put('kakashi', cx(s) + u, s, 0.35, {})
   // お地蔵さん（道の端・6体並び）
@@ -122,12 +151,14 @@ export function makeHoles(seed) {
   for (let s = 66 + R() * 4; s < 196; s += 9 + R() * 5) row(s, 2, pick([['small', 0.35], ['mid', 0.45], ['big', 0.2]]))
   for (let s = 212 + R() * 3; s < 316; s += 8 + R() * 4) row(s, 2, pick([['mid', 0.5], ['big', 0.5]]))
   for (let s = 330 + R() * 5; s < 416; s += 14 + R() * 6) row(s, 1, pick([['small', 0.4], ['mid', 0.4], ['big', 0.2]]))
-  for (let s = 428 + R() * 3; s < 540; s += 9 + R() * 4) row(s, 2, pick([['small', 0.3], ['mid', 0.35], ['big', 0.35]]))
-  // 岩と重なった穴は外す
-  return H.filter(h => !OBJ.some(o => !o.decor && Math.hypot(o.x - h.x, o.z - h.z) < o.r + h.hr + 0.4)).map((h, i) => (h.i = i, h))
+  // 凸凹の山道: 穴は少なめ（凸凹と石ころが主役）
+  for (let s = 430 + R() * 6; s < 420 + D - 8; s += 15 + R() * 8) row(s, 1, pick([['small', 0.3], ['mid', 0.4], ['big', 0.3]]))
+  for (let s = 428 + D + R() * 3; s < 540 + D; s += 9 + R() * 4) row(s, 2, pick([['small', 0.3], ['mid', 0.35], ['big', 0.35]]))
+  // 岩・凸凹と重なった穴は外す
+  return H.filter(h => !OBJ.some(o => !o.decor && Math.hypot(o.x - h.x, o.z - h.z) < o.r + h.hr + 0.4) && !BUMPS.some(b => Math.abs(b.z - h.z) < 1.4 + h.hr)).map((h, i) => (h.i = i, h))
 }
 // ねずみが目の前に新しい穴を掘る場所（ねずみの里で 4 回）
-export function digPlan(seed) { const R = rng(seed * 37 + 3), a = []; for (let s = 436; s < 530; s += 20 + R() * 10) a.push(+s.toFixed(1)); return a }
+export function digPlan(seed) { const R = rng(seed * 37 + 3), a = []; for (let s = 436 + D; s < 530 + D; s += 20 + R() * 10) a.push(+s.toFixed(1)); return a }
 
 // 家と庭（終点）
 export const YARD = { z: S_END, house: { x: cx(S_END + 12) + 0.5, z: S_END + 13 } }

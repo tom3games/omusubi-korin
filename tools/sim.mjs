@@ -2,7 +2,7 @@
 import { newRun, step } from '../js/phys.js'
 import { makeBot } from '../js/bot.js'
 const N = +(process.argv[2] || 16)
-for (const kind of ['none', 'center', 'human', 'good', 'paddy']) for (const mode of ['kind', 'greedy']) {
+for (const kind of ['none', 'center', 'human', 'good', 'paddy']) for (const mode of ['greedy']) {
   const out = {}, ts = [], zs = []
   let kicks = 0, dodges = 0, trips = 0, edges = 0, rs = []
   for (let i = 1; i <= N; i++) {

@@ -5,13 +5,13 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { ShaderPass } from '../vendor/jsm/postprocessing/ShaderPass.js'
-import { TXT, ENDINGS, TAMA } from './data.js?v=4'
-import { makeTsuzura, makeItem } from './tama.js?v=4'
-import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=4'
-import { newRun, step, DT, holeOpen } from './phys.js?v=4'
-import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=4'
-import { loadChars, Person } from './chars.js?v=4'
-import { makeBot } from './bot.js?v=4'
+import { TXT, ENDINGS, TAMA } from './data.js?v=6'
+import { makeTsuzura, makeItem } from './tama.js?v=6'
+import { S_END, OBJ, YARD, SECTIONS, START_R, cx, height, widths, surfaceAt, sectionAt, clamp } from './course.js?v=6'
+import { newRun, step, DT, holeOpen } from './phys.js?v=6'
+import { buildWorld, buildSky, buildBackdrop, makeOnigiri, supportH, makeHole, makeMouse, makeParticles, makeLeaves, loadTextures, loadLaterTextures } from './view.js?v=6'
+import { loadChars, Person } from './chars.js?v=6'
+import { makeBot } from './bot.js?v=6'
 
 window.__jsUp = true
 const V = '?v=4'
@@ -92,7 +92,7 @@ function setMuteIcons() { for (const b of [$('bMute'), $('bMute2')]) { b.querySe
 for (const b of [$('bMute'), $('bMute2')]) b.onclick = e => { e.stopPropagation(); startAudio(); Snd.setMute(!Snd.muted); LS.set('mute', Snd.muted ? '1' : '0'); setMuteIcons() }
 
 // ------------------------------------------------------------ 状態
-const G = { state: 'load', run: null, mode: 'kind', inp: {}, imp: { push: 0, lat: 0 }, swipes: 0, keys: new Set(), drag: null, acc: 0, last: 0, prev: null, camPos: new THREE.Vector3(), camLook: new THREE.Vector3(), camDir: new THREE.Vector3(0, 0, 1), shake: 0, bubQ: [], bub: null, introT: 0, endT: 0, end: null, zukan: {}, paused: false, bot: null, tutDone: false, sec: '', mouseSay: 0, seed: 1 }
+const G = { state: 'load', run: null, mode: 'greedy', inp: {}, imp: { push: 0, lat: 0 }, swipes: 0, keys: new Set(), drag: null, acc: 0, last: 0, prev: null, camPos: new THREE.Vector3(), camLook: new THREE.Vector3(), camDir: new THREE.Vector3(0, 0, 1), shake: 0, bubQ: [], bub: null, introT: 0, endT: 0, end: null, zukan: {}, paused: false, bot: null, tutDone: false, sec: '', mouseSay: 0, seed: 1 }
 window.omu = G
 try { G.zukan = JSON.parse(LS.get('zukan', '{}')) } catch (e) { G.zukan = {} }
 G.tutDone = LS.get('tut', '0') === '1'
@@ -120,7 +120,7 @@ async function boot() {
   setTimeout(() => { loadLaterTextures(V); loadChars(V) }, 50)
   const l = $('loading'); l.style.opacity = '0'; l.style.pointerEvents = 'none'; setTimeout(() => l.remove(), 450)
   // 検査用: ?auto=kind|greedy&bot=human で自動で始めて最後まで遊ぶ（シミュレーター用。音は ?mute=1 で切る）
-  if (Q.get('auto')) setTimeout(() => { startRun(+(Q.get('seed') || 3), Q.get('auto') === 'greedy' ? 'greedy' : 'kind'); G.bot = makeBot(Q.get('bot') || 'human', 3); setTimeout(beginPlay, 2500) }, 1500)
+  if (Q.get('auto')) setTimeout(() => { startRun(+(Q.get('seed') || 3), Q.get('auto') === 'kind' ? 'kind' : 'greedy'); G.bot = makeBot(Q.get('bot') || 'human', 3); setTimeout(beginPlay, 2500) }, 1500)
 }
 setTimeout(() => { const l = $('loading'); if (l && G.state === 'load') l.style.opacity = '0' }, 12000)
 
@@ -137,13 +137,15 @@ function applyLang() {
   $('tutT').textContent = isTouch ? t('tutSP') : t('tutPC')
   refreshTitle(); setMuteIcons(); drawEmaki()
 }
-function zCount() { return ENDINGS.filter(e => G.zukan[e.key]).length }
+// やさしいおじいさんの話は外した（2026-11-21）ので、図鑑はいじわるじいさんの結末だけ
+const ENDS = ENDINGS.filter(e => e.mode !== 'kind')
+function zCount() { return ENDS.filter(e => G.zukan[e.key]).length }
 function refreshTitle() {
-  $('bZukan').innerHTML = `${t('zukan')} <b>${t('zcount')(zCount(), ENDINGS.length)}</b>`
+  $('bZukan').innerHTML = `${t('zukan')} <b>${t('zcount')(zCount(), ENDS.length)}</b>`
   const best = +LS.get('best', 0); $('tBest').textContent = best > 0 ? t('best')(best) : ''
 }
 function openZukan() {
-  $('zGrid').innerHTML = ENDINGS.map(e => { const got = G.zukan[e.key]; return `<div class="z ${got ? '' : 'no'} ${e.rare ? 'rare' : ''} ${got && e.stamp === 'good' ? 'good' : ''}"><b>${got ? t('endName')[e.key] : t('unknown')}</b><i>${t('endHint')[e.key]}</i></div>` }).join('')
+  $('zGrid').innerHTML = ENDS.map(e => { const got = G.zukan[e.key]; return `<div class="z ${got ? '' : 'no'} ${e.rare ? 'rare' : ''} ${got && e.stamp === 'good' ? 'good' : ''}"><b>${got ? t('endName')[e.key] : t('unknown')}</b><i>${t('endHint')[e.key]}</i></div>` }).join('')
   $('zukan').hidden = false
 }
 $('bHow').onclick = () => { Snd.play('click', { vol: 0.5 }); $('how').hidden = false }
@@ -165,7 +167,7 @@ function enter(s) {
 $('bKind').onclick = () => go('kind')
 $('bGreedy').onclick = () => go('greedy')
 $('bAgain').onclick = () => go(G.mode)
-$('bOther').onclick = () => go(G.mode === 'kind' ? 'greedy' : 'kind')
+$('bOther').onclick = () => go('greedy') // ボタンは隠している（話は1つ）
 $('bBack').onclick = () => { Snd.play('click', { vol: 0.5 }); setupRun(G.seed, 'kind'); camTitle(true); enter('title') }
 function go(mode) {
   startAudio(); Snd.play('click', { vol: 0.6 })
@@ -181,6 +183,7 @@ function setupRun(seed, mode) {
   for (const H of HV) scene.remove(H.g)
   for (const V of WV) scene.remove(V.g)
   WV.length = 0
+  clearPebs()
   HV.length = 0
   for (const h of G.run.holes) HV.push(makeHole(scene, h))
   // おじいさん
@@ -264,7 +267,7 @@ function oniVisual(alpha) {
   const x = p ? p.x + (o.x - p.x) * alpha : o.x, z = p ? p.z + (o.z - p.z) * alpha : o.z, ang = p ? p.ang + (o.ang - p.ang) * alpha : o.ang
   const r = o.r
   oni.scale.setScalar(r)
-  oni.position.set(x, height(x, z) + supportH(r, ang) + o.bump * 0.12 * Math.abs(Math.sin(G.run.t * 30)), z)
+  oni.position.set(x, height(x, z) + supportH(r, ang) + (o.hy || 0) + o.bump * 0.12 * Math.abs(Math.sin(G.run.t * 30)), z)
   // 進む向きに向ける（横に回すと向きが変わる）
   const sp = Math.hypot(o.vx, o.vz)
   if (sp > 0.3) { const yaw = Math.atan2(o.vx, o.vz) + 0.5; oni.rotation.y += ((yaw - oni.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * 0.25 } // 少しカメラの方へ向けて三角の面を見せる
@@ -324,7 +327,7 @@ function pop(text, red) { const el = $('pop'); el.textContent = text; el.classLi
 function drawEmaki() {
   const s = $('emakiSvg'); if (!s) return
   let d = 'M0 26'; for (let i = 1; i <= 30; i++) { const x = i * 10, y = 26 - 8 * Math.sin(i / 30 * Math.PI) + 3 * Math.sin(i * 1.3); d += ` L${x} ${y.toFixed(1)}` }
-  const ticks = SECTIONS.slice(1, 5).map(q => { const x = (q.s0 / S_END * 300).toFixed(1); return `<line x1="${x}" y1="4" x2="${x}" y2="34" stroke="rgba(107,82,54,.25)" stroke-width="1"/>` }).join('')
+  const ticks = SECTIONS.slice(1, SECTIONS.length - 1).map(q => { const x = (q.s0 / S_END * 300).toFixed(1); return `<line x1="${x}" y1="4" x2="${x}" y2="34" stroke="rgba(107,82,54,.25)" stroke-width="1"/>` }).join('')
   s.innerHTML = `${ticks}<path d="${d}" stroke="#a08a66" stroke-width="2.4" fill="none" stroke-dasharray="1 4" stroke-linecap="round"/>
 <text class="lbl" x="2" y="12">${t('strip').start}</text><text class="lbl" x="298" y="12" text-anchor="end">${t('strip').end}</text>
 <g id="emG"><circle r="5" fill="#8a4a2a" stroke="#3a2412" stroke-width="1.5"/></g>
@@ -372,6 +375,14 @@ function onEvent(e) {
     case 'stop': pop(t('pop').stop, true); oni.setFace('scared'); G.faceT = 99; say(G.mode === 'kind' ? B.kStop : B.gStop, 'gpa'); break
     case 'push': if (e.push > 0.2) dust(oni.position, 3); if (G.faceT > 50) { G.faceT = 0.01 } break
     case 'digGiveUp': say(B.mSad, null, { mouse: 1 }); break
+    // 凸凹（2026-11-21）
+    case 'hop': Snd.play('wood', { vol: 0.6, rate: 1.25 }); dust(oni.position, 6); pop(PP.hop); break
+    case 'land': Snd.play('wood', { vol: 0.75, rate: 0.9 }); G.shake = 0.1; riceBurst(oni.position, 6 + Math.min(10, e.land * 3)); pop(PP.land, true); oni.setFace('dizzy'); G.faceT = 0.5; checkSize(); break
+    case 'deko': if (Math.random() < 0.5) Snd.play('wood', { vol: 0.35, rate: 1.1 }); dust(oni.position, 3); break
+    // 石ころ（2026-11-21）
+    case 'peb': { addPeb(r.pebs[e.i]); gpa.play('attack-melee-right', true, 0.8); Snd.play('grunt', { vol: 0.5 }); if (!G.pebSaid || r.t - G.pebSaid > 9) { G.pebSaid = r.t; say(G.pebN ? B.gPeb2 : B.gPeb, 'gpa') } G.pebN = (G.pebN || 0) + 1; break }
+    case 'pebHit': Snd.play('rock', { vol: 0.9 }); G.shake = 0.15; riceBurst(oni.position, 12); pop(PP.peb, true); oni.setFace('dizzy'); G.faceT = 0.7; checkSize(); if (Math.random() < 0.5) say(B.gPebHit, 'gpa'); break
+    case 'pebMiss': { const q = r.pebs[e.i]; Snd.play('rock', { vol: 0.45, rate: 1.2 }); dust(_v.set(q.x1, height(q.x1, q.z1) + 0.1, q.z1), 6); if (Math.hypot(o.x - q.x1, o.z - q.z1) < o.r + 0.9) pop(PP.pebDodge); break }
     case 'end': startEnding(e.key); break
   }
 }
@@ -415,6 +426,28 @@ function fadeGpa(a, dt) {
   const na = gpaAlpha + (a - gpaAlpha) * Math.min(1, dt * 8); if (Math.abs(na - gpaAlpha) < 0.002) return; gpaAlpha = na
   gpaG.traverse(n => { if (n.isMesh) { n.material.transparent = gpaAlpha < 0.99; n.material.opacity = gpaAlpha; n.material.depthWrite = gpaAlpha > 0.99 } })
 }
+// 石ころの見た目（動きは phys.js の pebbles）。落ちる所に影を出して、よけられるようにする
+const PV = []
+const pebGeo = new THREE.DodecahedronGeometry(0.12, 0), pebMat = new THREE.MeshStandardMaterial({ color: 0x7d776c, roughness: 0.95 })
+const shGeo = new THREE.CircleGeometry(0.32, 20), shMat = new THREE.MeshBasicMaterial({ color: 0x2a1c10, transparent: true, opacity: 0.35, depthWrite: false })
+function addPeb(q) {
+  const m = new THREE.Mesh(pebGeo, pebMat); m.castShadow = true; scene.add(m)
+  const sh = new THREE.Mesh(shGeo, shMat.clone()); sh.rotation.x = -Math.PI / 2; scene.add(sh)
+  PV.push({ q, m, sh, life: 0 })
+}
+function updatePebs(dt) {
+  const r = G.run
+  for (const V of PV) {
+    const q = r.pebs[V.q.i] || V.q; V.q = q
+    if (q.done) { V.life += dt; V.m.visible = V.life < 0.6; V.sh.visible = false; continue }
+    const k = clamp(q.t / q.dur, 0, 1), x = q.x0 + (q.x1 - q.x0) * k, z = q.z0 + (q.z1 - q.z0) * k
+    const y0 = height(q.x0, q.z0) + 1.35, y1 = height(q.x1, q.z1) + 0.08
+    V.m.position.set(x, y0 + (y1 - y0) * k + 2.2 * 4 * k * (1 - k), z); V.m.rotation.x += dt * 9; V.m.rotation.z += dt * 6
+    V.sh.position.set(q.x1, height(q.x1, q.z1) + 0.03, q.z1); V.sh.scale.setScalar(0.6 + 0.6 * k); V.sh.material.opacity = 0.18 + 0.32 * k
+  }
+}
+function clearPebs() { for (const V of PV) { scene.remove(V.m); scene.remove(V.sh) } PV.length = 0; G.pebN = 0; G.pebSaid = 0 }
+
 // 通行人の見た目（動きは phys.js の walkers）
 const WV = []
 function addWalker(w) {
@@ -775,7 +808,7 @@ function frame(dt) {
   } else if (G.state === 'result') {
     // 背景は止めたまま
   }
-  if (G.state === 'play' || G.state === 'ending') { updateHoles(dt); updateWalkers(dt); updateBub(dt); updateEmaki() }
+  if (G.state === 'play' || G.state === 'ending') { updateHoles(dt); updateWalkers(dt); updatePebs(dt); updateBub(dt); updateEmaki() }
   P.update(dt)
   leaves.update(dt, cx(oni.position.z), oni.position.z, sectionAt(oni.position.z) !== 'take' && sectionAt(oni.position.z) !== 'tanbo')
   baba.update(dt)
@@ -804,7 +837,7 @@ function playFx(dt) {
 // ------------------------------------------------------------ 検査用の窓口
 window.omuApi = {
   G, get run() { return G.run },
-  start(mode = 'kind', seed = 1) { startAudio(); startRun(seed, mode); beginPlay() },
+  start(mode = 'greedy', seed = 1) { startAudio(); startRun(seed, mode); beginPlay() },
   bot(kind) { G.bot = kind ? makeBot(kind, G.seed) : null },
   dbg: { pause(v = true) { G.paused = v }, step(n = 1) { for (let i = 0; i < n; i++) frame(1 / 60) } },
   oniXY() { _v.copy(oni.position).project(camera); return { x: (_v.x * 0.5 + 0.5) * innerWidth, y: (-_v.y * 0.5 + 0.5) * innerHeight } },

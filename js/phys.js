@@ -1,12 +1,16 @@
 // おむすびとおじいさんの動き（three を使わない。固定 60Hz。同じ入力なら同じ結果）
-import { OBJ, HOLE, START_R, S_END, SURF, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=4'
+import { OBJ, HOLE, START_R, S_END, SURF, BUMPS, D, height, surfaceAt, sectionAt, cx, widths, clamp, rng, makeHoles, digPlan } from './course.js?v=6'
 
 export const DT = 1 / 60
 export const TUNE = {
   g: 12.5, gk: 0.45, cd: 0.008, roll: 1.35, pushV: 3.1, latV: 3.2, latDamp: 3.0, vmax: 11, stopV: 0.3,
   grow: 0.0075, maxR: 0.62, chip: [0.012, 0.0016],
   // 転がるたびに少しずつ削れる（1m で wear。田んぼでは削れずにくっつく）。2026-11-20 本人「転がっていくたびにちょっとずつ削れて」
-  wear: 0.0001, minR: 0.12,
+  wear: 0.00006, minR: 0.12, // 0.0001 → 0.00006（2026-11-21 コースが 600→820m に伸びたため）
+  // 凸凹: hopV より速く越えると跳ねる（速いほど高く）。着地で hopChip 削れる。2026-11-21 本人「スピード出してるとほんのちょっと飛ぶんだけど、小握りも軽く削れちゃう」
+  hopV: 5.2, hopChip: [0.002, 0.0006], grav: 14,
+  // 石ころ: 後半（pebZ から）いじわるじいさんが後ろから投げる。飛ぶ時間 pebT 秒、先回りの位置にずれ pebErr。当たると pebChip 削れる。2026-11-21 本人「後半はおじいさんが後ろから石ころを飛ばしてくる」
+  pebZ: 420, pebEvery: [2.3, 3.6], pebT: 0.95, pebErr: 0.45, pebHit: 0.2, pebChip: 0.007, pebGap: [2.5, 15],
   // おじいさん
   kind: { vmax: 15, acc: 6, catchD: 0.95, follow: 0.97, close: 0.45, far: 9 },
   greedy: { vmax: 16, acc: 7, follow: 1.0, close: 1.1, far: 7, kickD: 2.1, windup: 0.62, cool: 3.2, hitLat: 0.85 },
@@ -17,11 +21,12 @@ for (const o of OBJ) { if (o.decor) continue; for (let z = Math.floor(o.z - o.r 
 // mode: 'kind'（やさしいおじいさんが落とした）／'greedy'（いじわるじいさんが転がした）
 export function newRun(seed = 1, opt = {}) {
   const R = rng(seed * 7919 + 5)
-  const mode = opt.mode || (R() < 0.5 ? 'kind' : 'greedy')
+  // やさしいおじいさんの話は 2026-11-21 本人「簡単モードはいらない」で外した（コードは残す。opt.mode で呼べる）
+  const mode = opt.mode || 'greedy'
   const holes = makeHoles(seed)
   return {
-    seed, mode, t: 0, steps: 0, holes, digs: digPlan(seed), digI: 0, wplan: walkPlan(seed), wI: 0, walkers: [],
-    o: mode === 'kind' ? { x: cx(-3.6) + 1.5, z: -3.6, vx: -0.3, vz: 2.2, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 } : { x: cx(-2.2), z: -2.2, vx: 0, vz: 5.0, r: START_R, y: 0, ang: 0, sp: 0, bump: 0 },
+    seed, mode, t: 0, steps: 0, holes, digs: digPlan(seed), digI: 0, wplan: walkPlan(seed), wI: 0, walkers: [], pebs: [], pebN: 0, pebT: 0, bI: 0,
+    o: mode === 'kind' ? { x: cx(-3.6) + 1.5, z: -3.6, vx: -0.3, vz: 2.2, r: START_R, y: 0, ang: 0, sp: 0, bump: 0, hy: 0, vy: 0 } : { x: cx(-2.2), z: -2.2, vx: 0, vz: 5.0, r: START_R, y: 0, ang: 0, sp: 0, bump: 0, hy: 0, vy: 0 },
     g: mode === 'kind' ? { x: cx(-5.2) + 2.7, z: -5.2, v: 0, st: 'wait', tm: 1.1, aimX: 0, cool: 1.5, hist: [] } : { x: cx(-3.6), z: -3.6, v: 0, st: 'wait', tm: 0.5, aimX: 0, cool: 1.5, hist: [] },
     alive: new Uint8Array(OBJ.length).fill(1), cd: new Float32Array(OBJ.length), hcd: new Float32Array(holes.length),
     ev: [], end: null, done: false, lastKick: -9,
@@ -29,7 +34,7 @@ export function newRun(seed = 1, opt = {}) {
   }
 }
 export function cloneRun(run) {
-  return { ...run, o: { ...run.o }, g: { ...run.g, hist: run.g.hist.slice() }, holes: run.holes.map(h => ({ ...h })), digs: run.digs.slice(), wplan: run.wplan.slice(), walkers: run.walkers.map(w => ({ ...w })), alive: run.alive.slice(), cd: run.cd.slice(), hcd: run.hcd.slice(), ev: [], st: { ...run.st } }
+  return { ...run, o: { ...run.o }, g: { ...run.g, hist: run.g.hist.slice() }, holes: run.holes.map(h => ({ ...h })), digs: run.digs.slice(), wplan: run.wplan.slice(), walkers: run.walkers.map(w => ({ ...w })), pebs: run.pebs.map(q => ({ ...q })), alive: run.alive.slice(), cd: run.cd.slice(), hcd: run.hcd.slice(), ev: [], st: { ...run.st } }
 }
 function emit(run, k, o = {}) { run.ev.push({ k, ...o }) }
 function finish(run, key, extra = {}) { if (run.done) return; run.done = true; run.end = { key, r: run.o.r, z: run.o.z, x: run.o.x, t: run.t, ...extra }; emit(run, 'end', { key }) }
@@ -38,7 +43,7 @@ export function holeOpen(run, h) { return run.t >= h.t0 && !(h.t1 && run.t > h.t
 export function arriveEnding(run) {
   const r = run.o.r
   if (r >= 0.52) return 'oomusubi'
-  if (r < 0.18) return 'hitokuchi'
+  if (r < 0.14) return 'hitokuchi' // 0.18 → 0.14（2026-11-21 コースが長くなり、上手く着いても削れの合計が増えたため）
   return run.mode === 'kind' ? 'eatenKind' : 'eatenGreedy'
 }
 
@@ -83,7 +88,8 @@ export function step(run, inp) {
   if (S.grow && o.r < T.maxR) { const g = T.grow * ds; o.r = Math.min(T.maxR, o.r + g); run.st.grow += g; run.st.paddyT += DT }
   else if (!S.grow && o.r > T.minR) { const w = Math.min(o.r - T.minR, T.wear * ds); o.r -= w; run.st.wear = (run.st.wear || 0) + w }
   collide(run, sp)
-  holes(run, px, pz)
+  bumps(run, pz, sp)
+  if (o.hy <= 0.04) holes(run, px, pz) // 跳んでいる間は穴の上を越える
   if (run.done) return
   o.sp = Math.hypot(o.vx, o.vz); if (o.sp > run.st.maxV) run.st.maxV = o.sp
   o.ang += ds / Math.max(0.08, o.r * 1.05)
@@ -91,6 +97,8 @@ export function step(run, inp) {
   o.y = height(o.x, o.z)
   dig(run)
   walkers(run)
+  pebbles(run)
+  if (run.done) return
   grandpa(run, inp)
   if (run.done) return
   if (o.z >= S_END) {
@@ -153,7 +161,7 @@ function holes(run, px, pz) {
 export const WALK = { mizu: { v: 1.15, hw: 0.62 }, kodomo: { v: 2.7, hw: 0.22 } }
 export function walkPlan(seed) {
   const R = rng(seed * 53 + 11), a = []
-  for (let s = 85 + R() * 20; s < 545; s += 62 + R() * 34) { const k = R() < 0.55 ? 'mizu' : 'kodomo', sd = R() < 0.5 ? -1 : 1; if (s > 422 && s < 538) continue; a.push({ z: +s.toFixed(1), kind: k, side: sd }) } // ねずみの里（掘る穴の区間）には出さない。重なると避けようがない
+  for (let s = 85 + R() * 20; s < 545 + D; s += 62 + R() * 34) { const k = R() < 0.55 ? 'mizu' : 'kodomo', sd = R() < 0.5 ? -1 : 1; if (s > 422 + D && s < 538 + D) continue; a.push({ z: +s.toFixed(1), kind: k, side: sd }) } // ねずみの里（掘る穴の区間）には出さない。重なると避けようがない
   return a
 }
 function walkers(run) {
@@ -180,6 +188,68 @@ function walkers(run) {
     }
   }
 }
+// 凸凹: 盛り上がりを越える時、速ければ跳ねる。着地で少し削れる
+function bumps(run, pz, sp) {
+  const o = run.o, T = TUNE
+  // 空中
+  if (o.hy > 0 || o.vy > 0) {
+    o.vy -= T.grav * DT; o.hy += o.vy * DT
+    if (o.hy <= 0) {
+      o.hy = 0; const land = -o.vy; o.vy = 0
+      const dr = -(T.hopChip[0] + T.hopChip[1] * Math.max(0, land - 1))
+      o.r = Math.max(T.minR, o.r + dr); o.bump = 1
+      run.st.hopChip = (run.st.hopChip || 0) - dr
+      emit(run, 'land', { dr, land })
+    }
+  }
+  while (run.bI < BUMPS.length && BUMPS[run.bI].z < pz - 1) run.bI++
+  for (let i = run.bI; i < BUMPS.length && BUMPS[i].z < o.z + 1; i++) {
+    const b = BUMPS[i]
+    if (!(pz < b.z && o.z >= b.z)) continue
+    const u = o.x - cx(b.z) - b.u
+    if (Math.abs(u) > b.hw + o.r * 0.4) continue
+    if (o.hy > 0) continue
+    if (sp > T.hopV) {
+      o.vy = (1.1 + 0.35 * (sp - T.hopV)) * b.h / 0.17; o.hy = 0.001 // 8m/s で約2m/s（高さ約15cm・0.3秒）
+      run.st.hops = (run.st.hops || 0) + 1
+      emit(run, 'hop', { sp, vy: o.vy })
+    } else { o.bump = Math.max(o.bump, 0.6); o.vz *= 0.97; emit(run, 'deko', { sp }) }
+  }
+}
+
+// 石ころ: 後半、いじわるじいさんが後ろから投げる。投げた時のおむすびの動きから先回りの位置へ（少しずれる）
+function pebbles(run) {
+  if (run.__pred) return
+  const o = run.o, g = run.g, T = TUNE
+  for (const q of run.pebs) {
+    if (q.done) continue
+    q.t += DT
+    if (q.t >= q.dur) {
+      q.done = 1
+      const d = Math.hypot(o.x - q.x1, o.z - q.z1)
+      if (d < o.r + T.pebHit && o.hy < 0.25) {
+        const dr = -T.pebChip; o.r = Math.max(T.minR, o.r + dr); o.bump = 1
+        run.st.pebHits = (run.st.pebHits || 0) + 1
+        emit(run, 'pebHit', { i: q.i, dr })
+      } else emit(run, 'pebMiss', { i: q.i })
+    }
+  }
+  if (run.mode !== 'greedy' || o.z < T.pebZ || o.z > S_END - 14 || g.st !== 'run') return
+  const gap = Math.hypot(o.x - g.x, o.z - g.z)
+  run.pebT -= DT
+  if (run.pebT > 0 || gap < T.pebGap[0] || gap > T.pebGap[1]) return
+  const R = rng(run.seed * 977 + run.pebN * 31 + 1)
+  run.pebT = T.pebEvery[0] + R() * (T.pebEvery[1] - T.pebEvery[0])
+  const dur = T.pebT, ang = R() * Math.PI * 2, er = T.pebErr * Math.sqrt(R())
+  // 狙いは「このまま何もしなければ dur 秒後にいる所」。下りで速くなる分も入る（2026-11-21: 今の速さで狙うと手前に落ちてまっすぐでも当たらなかった）
+  const f = cloneRun(run); f.__pred = 1
+  for (let i = 0, n = Math.round(dur / DT); i < n && !f.done; i++) step(f, {})
+  const x1 = f.o.x + Math.cos(ang) * er, z1 = f.o.z + Math.sin(ang) * er
+  const q = { i: run.pebN++, x0: g.x, z0: g.z, x1, z1, t: 0, dur, done: 0 }
+  run.pebs.push(q); run.st.pebs = (run.st.pebs || 0) + 1
+  emit(run, 'peb', { i: q.i })
+}
+
 function dig(run) {
   const o = run.o
   if (run.digI >= run.digs.length || o.z < run.digs[run.digI]) return

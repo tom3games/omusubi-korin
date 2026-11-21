@@ -6,7 +6,7 @@
 <link rel="canonical" href="https://tom3games.com/play/omusubi-korin/">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>おむすびころりん、落ちてたまるか｜おむすびころりんのゲーム</title>
-<meta name="description" content="昔話おむすびころりんのおむすびになって、山の畑からふもとの家まで転がる3Dゲーム。ねずみの穴に落ちたら終わり。岩で欠け、田んぼで太り、追いかけてくるおじいさんをかわす。やさしいおじいさんといじわるじいさん、2つの昔話から選べる。結末は9種類。">
+<meta name="description" content="昔話おむすびころりんのおむすびになって、山の畑からふもとの家まで転がる3Dゲーム。ねずみの穴に落ちたら終わり。岩で欠け、田んぼで太り、凸凹で跳ねる。追いかけてくるいじわるじいさんの蹴りと石ころをかわす。結末は7種類。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="おむすびころりん、落ちてたまるか">
 <meta property="og:description" content="おむすびになって山を転がる。ねずみの穴には、ぜったい落ちない。いじわるじいさんは穴の方へ蹴ってくる。">
@@ -61,6 +61,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .book .tag{position:absolute;left:14px;bottom:6px;font-size:13px;white-space:nowrap;font-weight:900;color:#fff;letter-spacing:.1em}
 .book .tag::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#e9dcc0;vertical-align:1px}
 .book.greedy .tag::before{background:var(--shu)}
+/* 2026-11-21 本人「簡単モードはいらない」「むずかしいと書くのは不要」: 絵本はいじわるじいさんの1冊だけ・札なし・もう一つの話のボタンなし */
+.book.kind,.book .tag,#bOther{display:none!important}
+.book.greedy{transform:none}
 #tBest{min-height:20px;margin-top:8px;font-size:13px;font-weight:700;color:#fff;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .tLinks{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:2px}
 .tLinks button{min-height:44px;padding:0 10px;font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.65)}
@@ -195,7 +198,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 <script src="tm.js?v=1" data-game="omusubi-korin"></script>
 <script src="sfx.js?v=1"></script>
-<script type="module" src="js/game.js?v=5"></script>
+<script type="module" src="js/game.js?v=6"></script>
 <script src="support.js?v=1" data-ja="おむすび" data-en="a rice ball"></script>
 </body>
 </html>

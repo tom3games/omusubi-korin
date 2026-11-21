@@ -1,7 +1,7 @@
 // 3D の見た目（地形・竹林・田んぼ・紅葉・岩・穴・ねずみ・家・おむすび）
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from '../vendor/jsm/utils/BufferGeometryUtils.js'
-import { OBJ, S_END, L, YARD, HOLE, height, surfaceAt, widths, cx, sectionAt, rng, clamp } from './course.js?v=4'
+import { OBJ, BUMPS, S_END, L, YARD, HOLE, D, height, surfaceAt, widths, cx, sectionAt, rng, clamp } from './course.js?v=6'
 
 const TEX = {}
 const FIRST = ['dirt_diff', 'aerial_grass_rock_diff', 'grass_path_2_diff', 'brown_mud_02_diff']
@@ -231,7 +231,7 @@ export function buildWorld(scene) {
     for (const side of [-1, 1]) {
       const edge = w.flat + 0.9
       if (sec === 'take' || (sec === 'hata' && s > 40) || (sec === 'tanbo' && s < 206)) { for (let k = 0; k < 3; k++) { if (R() < 0.75) { const u = side * (edge + 0.3 + R() * 9), x = c + u; bam.push({ x, y: height(x, s) - 0.2, z: s + R(), ry: R() * 6, rz: (R() - 0.5) * 0.12, rx: (R() - 0.5) * 0.12, s: 0.8 + R() * 0.45 }) } } }
-      else if (sec !== 'ie' || s < 575) { if (R() < 0.42) { const u = side * (edge + 1 + R() * 8), x = c + u; mom[Math.floor(R() * 3)].push({ x, y: height(x, s) - 0.1, z: s + R(), ry: R() * 6, s: 0.8 + R() * 0.5 }) } }
+      else if (sec !== 'ie' || s < 575 + D) { if (R() < 0.42) { const u = side * (edge + 1 + R() * 8), x = c + u; mom[Math.floor(R() * 3)].push({ x, y: height(x, s) - 0.1, z: s + R(), ry: R() * 6, s: 0.8 + R() * 0.5 }) } }
       // 道ばたの草
       if (R() < 0.8) { const u = side * (w.road + 0.15 + R() * 0.7), x = c + u; if (sectionAt(s) !== 'tanbo') tuft.push({ x, y: height(x, s), z: s + R(), ry: R() * 6, s: 0.6 + R() * 0.6 }) }
     }
@@ -248,6 +248,17 @@ export function buildWorld(scene) {
   W.rice = inst(scene, crossGeo(0.75, 1.05), rmat, rice, { shadow: false })
   // 田んぼの畦（あぜ）の線
   { const pts = []; for (let s = 214; s < 312; s += 14) { const w = widths(s); for (const side of [-1, 1]) for (let u = w.road + 0.3; u < w.flat; u += 0.6) { const x = cx(s) + side * u; pts.push({ x, y: height(x, s) + 0.02, z: s, s: 1 }) } } inst(scene, new THREE.BoxGeometry(0.6, 0.12, 0.35), new THREE.MeshStandardMaterial({ map: tx('dirt_diff', 0.3), color: 0x9a8060, roughness: 1 }), pts, { shadow: false }) }
+  // 凸凹の目印（2026-11-21: 地面の盛り上がりだけだと影の縞にしか見えなかった）。山道は小石、竹林は道を横切る根っこ
+  {
+    const R2 = rng(31), st = [], rt = []
+    for (const b of BUMPS) {
+      const c = cx(b.z) + b.u
+      if (sectionAt(b.z) === 'take') { for (let u = -b.hw; u < b.hw - 0.05; u += 0.45) { const x = c + u + 0.22; rt.push({ x, y: height(x, b.z) - 0.035, z: b.z + (R2() - 0.5) * 0.08, rz: Math.PI / 2, ry: (R2() - 0.5) * 0.25, s: 1 }) } }
+      else { const n = Math.round(b.hw * 5); for (let k = 0; k < n; k++) { const x = c + (R2() * 2 - 1) * b.hw * 0.95, z = b.z + (R2() - 0.5) * 0.5; st.push({ x, y: height(x, z) - 0.01, z, ry: R2() * 6, rx: R2() * 0.6, s: 0.06 + R2() * 0.06, sy: 0.035 + R2() * 0.025 }) } }
+    }
+    if (st.length) inst(scene, new THREE.DodecahedronGeometry(1, 0), M.stone, st, { shadow: false })
+    if (rt.length) inst(scene, new THREE.CylinderGeometry(0.08, 0.1, 0.5, 7), new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.95 }), rt, { shadow: false })
+  }
   // 当たる物
   const rockMat = M.stone
   for (const o of OBJ) {
